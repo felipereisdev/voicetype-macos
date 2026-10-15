@@ -1,0 +1,46 @@
+.agents/
+skills-lock.json
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+
+# Thumbnails
+._*
+
+# Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+dist/
+*.log
+.env
+.env.local
+.vscode/
+.idea/
+
+# Swift / Xcode
+**/.build/
+**/.swiftpm/
+**/xcuserdata/
+**/*.xcuserstate
+DerivedData/
+macos/build/dd/
+macos/build/release/
+
+# Local xcodebuild -derivedDataPath output (root only; macos/build/ holds tracked plists)
+/build/

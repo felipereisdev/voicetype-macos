@@ -1,0 +1,1176 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 60;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A020000000000000000000A1 /* MeetingRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B020000000000000000000A1 /* MeetingRecorder.swift */; };
+		A020000000000000000000B1 /* MeetingProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B020000000000000000000B1 /* MeetingProcessor.swift */; };
+		A020000000000000000000C1 /* MeetingDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B020000000000000000000C1 /* MeetingDetector.swift */; };
+		A020000000000000000000A2 /* SystemAudioCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = B020000000000000000000A2 /* SystemAudioCapture.swift */; };
+		A020000000000000000000A3 /* MicCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = B020000000000000000000A3 /* MicCapture.swift */; };
+		A001000000000000000000A1 /* VoiceTypeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B001000000000000000000B1 /* VoiceTypeApp.swift */; };
+		A001000000000000000000A2 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B001000000000000000000B2 /* AppDelegate.swift */; };
+		A001000000000000000000A4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B001000000000000000000B4 /* Assets.xcassets */; };
+		A001000000000000000000A5 /* AppDelegateSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B001000000000000000000B5 /* AppDelegateSmokeTests.swift */; };
+		A001000000000000000000A6 /* LaunchUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B001000000000000000000B6 /* LaunchUITests.swift */; };
+		A001000000000000000000A7 /* Core in Frameworks */ = {isa = PBXBuildFile; productRef = D001000000000000000000D1 /* Core */; };
+		A001000000000000000000AA /* SettingsScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = B001000000000000000000BF /* SettingsScene.swift */; };
+		A001000000000000000000AE /* Core in Frameworks */ = {isa = PBXBuildFile; productRef = D001000000000000000000D2 /* Core */; };
+		A001000000000000000000C1 /* recording_start.wav in Resources */ = {isa = PBXBuildFile; fileRef = B001000000000000000000C1 /* recording_start.wav */; };
+		A002000000000000000000A1 /* WavEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002000000000000000000A1 /* WavEncoder.swift */; };
+		A002000000000000000000A2 /* AudioDeviceResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002000000000000000000A2 /* AudioDeviceResolver.swift */; };
+		A002000000000000000000A3 /* AudioRecorderError.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002000000000000000000A3 /* AudioRecorderError.swift */; };
+		A002000000000000000000A4 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002000000000000000000A4 /* AudioRecorder.swift */; };
+		A002000000000000000000A5 /* HUDState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002000000000000000000A5 /* HUDState.swift */; };
+		A002000000000000000000A6 /* AuroraWaveform.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002000000000000000000A6 /* AuroraWaveform.swift */; };
+		A002000000000000000000A7 /* HUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002000000000000000000A7 /* HUDView.swift */; };
+		A002000000000000000000A8 /* HUDController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002000000000000000000A8 /* HUDController.swift */; };
+		A002000000000000000000A9 /* RecordingOrchestrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002000000000000000000A9 /* RecordingOrchestrator.swift */; };
+		A002000000000000000000B1 /* WavEncoderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002000000000000000000B1 /* WavEncoderTests.swift */; };
+		A002000000000000000000B2 /* AudioRecorderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002000000000000000000B2 /* AudioRecorderTests.swift */; };
+		A002000000000000000000B3 /* HUDControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002000000000000000000B3 /* HUDControllerTests.swift */; };
+		A002000000000000000000C1 /* NonActivatingPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002000000000000000000C1 /* NonActivatingPanel.swift */; };
+		A002000000000000000000C2 /* HUDIndicatorStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002000000000000000000C2 /* HUDIndicatorStyle.swift */; };
+		A002000000000000000000C3 /* NotchShape.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002000000000000000000C3 /* NotchShape.swift */; };
+		A002000000000000000000C4 /* NotchGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002000000000000000000C4 /* NotchGeometry.swift */; };
+		A002000000000000000000C5 /* NotchIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002000000000000000000C5 /* NotchIndicator.swift */; };
+		A002000000000000000000D1 /* SoundFeedbackService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002000000000000000000D1 /* SoundFeedbackService.swift */; };
+		A002000000000000000000D2 /* AudioInputDevice.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002000000000000000000D2 /* AudioInputDevice.swift */; };
+		A002000000000000000000D3 /* AudioDevicePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002000000000000000000D3 /* AudioDevicePreview.swift */; };
+		A002000000000000000000D4 /* AudioInputResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002000000000000000000D4 /* AudioInputResolver.swift */; };
+		A002000000000000000000D5 /* AudioInputResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002000000000000000000D5 /* AudioInputResolverTests.swift */; };
+		A003000000000000000000A1 /* Mode.swift in Sources */ = {isa = PBXBuildFile; fileRef = B003000000000000000000A1 /* Mode.swift */; };
+		A003000000000000000000A2 /* AccessibilityChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B003000000000000000000A2 /* AccessibilityChecker.swift */; };
+		A003000000000000000000A3 /* HoldDetectorCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B003000000000000000000A3 /* HoldDetectorCore.swift */; };
+		A003000000000000000000A4 /* HoldDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B003000000000000000000A4 /* HoldDetector.swift */; };
+		A003000000000000000000A5 /* ShortcutManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B003000000000000000000A5 /* ShortcutManager.swift */; };
+		A003000000000000000000B1 /* HoldDetectorCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B003000000000000000000B1 /* HoldDetectorCoreTests.swift */; };
+		A003000000000000000000B2 /* ShortcutManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B003000000000000000000B2 /* ShortcutManagerTests.swift */; };
+		A003000000000000000000B3 /* RecordingOrchestratorSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B003000000000000000000B3 /* RecordingOrchestratorSmokeTests.swift */; };
+		A004000000000000000000A1 /* FocusedApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B004000000000000000000A1 /* FocusedApp.swift */; };
+		A004000000000000000000A2 /* PasteboardProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = B004000000000000000000A2 /* PasteboardProtocol.swift */; };
+		A004000000000000000000A3 /* EventInjectorProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = B004000000000000000000A3 /* EventInjectorProtocol.swift */; };
+		A004000000000000000000A4 /* Paster.swift in Sources */ = {isa = PBXBuildFile; fileRef = B004000000000000000000A4 /* Paster.swift */; };
+		A004000000000000000000A5 /* AccessibilityWriterProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = B004000000000000000000A5 /* AccessibilityWriterProtocol.swift */; };
+		A004000000000000000000B1 /* PasterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B004000000000000000000B1 /* PasterTests.swift */; };
+		A00500000000000000000004 /* SettingsStrings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00500000000000000000003 /* SettingsStrings.swift */; };
+		A00500000000000000000006 /* SettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00500000000000000000005 /* SettingsSection.swift */; };
+		A00500000000000000000008 /* GeneralSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00500000000000000000007 /* GeneralSection.swift */; };
+		A00500000000000000000010 /* ShortcutsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00500000000000000000009 /* ShortcutsSection.swift */; };
+		A00500000000000000000012 /* AudioSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00500000000000000000011 /* AudioSection.swift */; };
+		A00500000000000000000014 /* HistorySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00500000000000000000013 /* HistorySection.swift */; };
+		A0050000000000000000F001 /* MeetingSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0050000000000000000F001 /* MeetingSection.swift */; };
+		A00500000000000000000016 /* StartupSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00500000000000000000015 /* StartupSection.swift */; };
+		A00500000000000000000018 /* AboutSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00500000000000000000017 /* AboutSection.swift */; };
+		A00500000000000000000020 /* PermissionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00500000000000000000019 /* PermissionRow.swift */; };
+		A00500000000000000000022 /* SystemSettingsLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00500000000000000000021 /* SystemSettingsLink.swift */; };
+		A00500000000000000000024 /* ShortcutRecorderField.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00500000000000000000023 /* ShortcutRecorderField.swift */; };
+		A00500000000000000000026 /* GroqKeyTesting.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00500000000000000000025 /* GroqKeyTesting.swift */; };
+		A00500000000000000000028 /* LoginItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00500000000000000000027 /* LoginItem.swift */; };
+		A00500000000000000000030 /* PermissionStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00500000000000000000029 /* PermissionStatus.swift */; };
+		A00500000000000000000032 /* PermissionsCheckerProtocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00500000000000000000031 /* PermissionsCheckerProtocols.swift */; };
+		A00500000000000000000034 /* PermissionsChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00500000000000000000033 /* PermissionsChecker.swift */; };
+		A00500000000000000000036 /* SettingsTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00500000000000000000035 /* SettingsTestSupport.swift */; };
+		A00500000000000000000038 /* GeneralSectionViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00500000000000000000037 /* GeneralSectionViewModelTests.swift */; };
+		A00500000000000000000042 /* AudioSectionViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00500000000000000000041 /* AudioSectionViewModelTests.swift */; };
+		A00500000000000000000046 /* StartupSectionViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00500000000000000000045 /* StartupSectionViewModelTests.swift */; };
+		A00500000000000000000048 /* PermissionsCheckerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00500000000000000000047 /* PermissionsCheckerTests.swift */; };
+		A00500000000000000000050 /* SettingsSceneUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00500000000000000000049 /* SettingsSceneUITests.swift */; };
+		A00500000000000000000052 /* AppearanceSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00500000000000000000051 /* AppearanceSection.swift */; };
+		A005000000000000000000A1 /* VocabularySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B005000000000000000000A1 /* VocabularySection.swift */; };
+		A005000000000000000000B2 /* LocalTranscriptionSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B005000000000000000000B2 /* LocalTranscriptionSection.swift */; };
+		A005000000000000000000B3 /* LocalRefinementSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B005000000000000000000B3 /* LocalRefinementSection.swift */; };
+		A00500000000000000004401 /* RefineStyleSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00500000000000000004401 /* RefineStyleSection.swift */; };
+		A005000000000000000010F2 /* MenuBarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = B005000000000000000010F1 /* MenuBarContent.swift */; };
+		A007000000000000000000A1 /* ActivationPolicyTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B007000000000000000000B1 /* ActivationPolicyTracker.swift */; };
+		A007000000000000000000A2 /* HistoryStrings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B007000000000000000000B2 /* HistoryStrings.swift */; };
+		A007000000000000000000A3 /* AppIconResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B007000000000000000000B3 /* AppIconResolver.swift */; };
+		A007000000000000000000A4 /* HistoryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B007000000000000000000B4 /* HistoryViewModel.swift */; };
+		A007000000000000000000A5 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B007000000000000000000B5 /* HistoryView.swift */; };
+		A007000000000000000000A6 /* HistoryWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B007000000000000000000B6 /* HistoryWindow.swift */; };
+		A007000000000000000000A7 /* HistoryViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B007000000000000000000B7 /* HistoryViewModelTests.swift */; };
+		A008000000000000000000A1 /* Notifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = B008000000000000000000B1 /* Notifier.swift */; };
+		A008000000000000000000A2 /* NotificationCopy.swift in Sources */ = {isa = PBXBuildFile; fileRef = B008000000000000000000B2 /* NotificationCopy.swift */; };
+		A008000000000000000000A3 /* NotifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B008000000000000000000B3 /* NotifierTests.swift */; };
+		A008000000000000000000A4 /* LoginItemTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B008000000000000000000B4 /* LoginItemTests.swift */; };
+		A008000000000000000000A5 /* SystemSettingsLinkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B008000000000000000000B5 /* SystemSettingsLinkTests.swift */; };
+		A009000000000000000000A1 /* ErrorPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B009000000000000000000A1 /* ErrorPresenter.swift */; };
+		A009000000000000000000B1 /* ErrorPresenterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B009000000000000000000B1 /* ErrorPresenterTests.swift */; };
+		A00C000000000000000000A1 /* AppDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00C000000000000000000A1 /* AppDependencies.swift */; };
+		A00C000000000000000000B1 /* AppDependenciesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00C000000000000000000B1 /* AppDependenciesTests.swift */; };
+		A00D000000000000000000A1 /* ConfigStoreSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00D000000000000000000A1 /* ConfigStoreSnapshot.swift */; };
+		A00D000000000000000000B1 /* ConfigStoreSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00D000000000000000000B1 /* ConfigStoreSnapshotTests.swift */; };
+		A00E000000000000000000A1 /* HistoryStoreSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00E000000000000000000A1 /* HistoryStoreSnapshot.swift */; };
+		A00E000000000000000000B1 /* HistoryStoreSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00E000000000000000000B1 /* HistoryStoreSnapshotTests.swift */; };
+		A00F000000000000000000A1 /* AudioCaptureAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00F000000000000000000A1 /* AudioCaptureAdapter.swift */; };
+		A00F000000000000000000A2 /* StateMachineAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00F000000000000000000A2 /* StateMachineAdapter.swift */; };
+		A00F000000000000000000A3 /* PasterDeliveryAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00F000000000000000000A3 /* PasterDeliveryAdapter.swift */; };
+		A00F000000000000000000A4 /* PipelineRunnerAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00F000000000000000000A4 /* PipelineRunnerAdapter.swift */; };
+		A00F000000000000000000A5 /* HistoryRecorderAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00F000000000000000000A5 /* HistoryRecorderAdapter.swift */; };
+		A00F000000000000000000A7 /* RecordingOrchestrator+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00F000000000000000000A7 /* RecordingOrchestrator+Helpers.swift */; };
+		DE3214E92FE415BF000EA50B /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = DE3214E82FE415BF000EA50B /* WhisperKit */; };
+		A010000000000000000000A1 /* WhisperModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B010000000000000000000A1 /* WhisperModelManager.swift */; };
+		A010000000000000000000A2 /* LocalTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = B010000000000000000000A2 /* LocalTranscriber.swift */; };
+		A010000000000000000000A3 /* AIAvailability.swift in Sources */ = {isa = PBXBuildFile; fileRef = B010000000000000000000A3 /* AIAvailability.swift */; };
+		A010000000000000000000A4 /* LocalRefiner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B010000000000000000000A4 /* LocalRefiner.swift */; };
+		A00500000000000000004101 /* CursorContextReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00500000000000000004101 /* CursorContextReader.swift */; };
+		A00500000000000000004102 /* EditObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00500000000000000004102 /* EditObserver.swift */; };
+		A010000000000000000000A5 /* LocalTranslator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B010000000000000000000A5 /* LocalTranslator.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		C001000000000000000000C1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E001000000000000000000E1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F001000000000000000000F1;
+			remoteInfo = VoiceType;
+		};
+		C001000000000000000000C2 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E001000000000000000000E1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F001000000000000000000F1;
+			remoteInfo = VoiceType;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		B020000000000000000000A1 /* MeetingRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingRecorder.swift; sourceTree = "<group>"; };
+		B020000000000000000000B1 /* MeetingProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingProcessor.swift; sourceTree = "<group>"; };
+		B020000000000000000000C1 /* MeetingDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingDetector.swift; sourceTree = "<group>"; };
+		B020000000000000000000A2 /* SystemAudioCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemAudioCapture.swift; sourceTree = "<group>"; };
+		B020000000000000000000A3 /* MicCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicCapture.swift; sourceTree = "<group>"; };
+		B001000000000000000000B1 /* VoiceTypeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceTypeApp.swift; sourceTree = "<group>"; };
+		B001000000000000000000B2 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		B001000000000000000000B4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B001000000000000000000B5 /* AppDelegateSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegateSmokeTests.swift; sourceTree = "<group>"; };
+		B001000000000000000000B6 /* LaunchUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchUITests.swift; sourceTree = "<group>"; };
+		B001000000000000000000B7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B001000000000000000000B8 /* entitlements.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = entitlements.plist; sourceTree = "<group>"; };
+		B001000000000000000000B9 /* VoiceType.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VoiceType.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B001000000000000000000BA /* VoiceTypeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VoiceTypeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B001000000000000000000BB /* VoiceTypeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VoiceTypeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B001000000000000000000BC /* VoiceTypeCore */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = VoiceTypeCore; sourceTree = "<group>"; };
+		B001000000000000000000BF /* SettingsScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsScene.swift; sourceTree = "<group>"; };
+		B001000000000000000000C1 /* recording_start.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = recording_start.wav; sourceTree = "<group>"; };
+		B002000000000000000000A1 /* WavEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WavEncoder.swift; sourceTree = "<group>"; };
+		B002000000000000000000A2 /* AudioDeviceResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioDeviceResolver.swift; sourceTree = "<group>"; };
+		B002000000000000000000A3 /* AudioRecorderError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorderError.swift; sourceTree = "<group>"; };
+		B002000000000000000000A4 /* AudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorder.swift; sourceTree = "<group>"; };
+		B002000000000000000000A5 /* HUDState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDState.swift; sourceTree = "<group>"; };
+		B002000000000000000000A6 /* AuroraWaveform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuroraWaveform.swift; sourceTree = "<group>"; };
+		B002000000000000000000A7 /* HUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDView.swift; sourceTree = "<group>"; };
+		B002000000000000000000A8 /* HUDController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDController.swift; sourceTree = "<group>"; };
+		B002000000000000000000A9 /* RecordingOrchestrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingOrchestrator.swift; sourceTree = "<group>"; };
+		B002000000000000000000B1 /* WavEncoderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WavEncoderTests.swift; sourceTree = "<group>"; };
+		B002000000000000000000B2 /* AudioRecorderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorderTests.swift; sourceTree = "<group>"; };
+		B002000000000000000000B3 /* HUDControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDControllerTests.swift; sourceTree = "<group>"; };
+		B002000000000000000000C1 /* NonActivatingPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NonActivatingPanel.swift; sourceTree = "<group>"; };
+		B002000000000000000000C2 /* HUDIndicatorStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDIndicatorStyle.swift; sourceTree = "<group>"; };
+		B002000000000000000000C3 /* NotchShape.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchShape.swift; sourceTree = "<group>"; };
+		B002000000000000000000C4 /* NotchGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchGeometry.swift; sourceTree = "<group>"; };
+		B002000000000000000000C5 /* NotchIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchIndicator.swift; sourceTree = "<group>"; };
+		B002000000000000000000D1 /* SoundFeedbackService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundFeedbackService.swift; sourceTree = "<group>"; };
+		B002000000000000000000D2 /* AudioInputDevice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioInputDevice.swift; sourceTree = "<group>"; };
+		B002000000000000000000D3 /* AudioDevicePreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioDevicePreview.swift; sourceTree = "<group>"; };
+		B002000000000000000000D4 /* AudioInputResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioInputResolver.swift; sourceTree = "<group>"; };
+		B002000000000000000000D5 /* AudioInputResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioInputResolverTests.swift; sourceTree = "<group>"; };
+		B003000000000000000000A1 /* Mode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Mode.swift; sourceTree = "<group>"; };
+		B003000000000000000000A2 /* AccessibilityChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityChecker.swift; sourceTree = "<group>"; };
+		B003000000000000000000A3 /* HoldDetectorCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoldDetectorCore.swift; sourceTree = "<group>"; };
+		B003000000000000000000A4 /* HoldDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoldDetector.swift; sourceTree = "<group>"; };
+		B003000000000000000000A5 /* ShortcutManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutManager.swift; sourceTree = "<group>"; };
+		B003000000000000000000B1 /* HoldDetectorCoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoldDetectorCoreTests.swift; sourceTree = "<group>"; };
+		B003000000000000000000B2 /* ShortcutManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutManagerTests.swift; sourceTree = "<group>"; };
+		B003000000000000000000B3 /* RecordingOrchestratorSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingOrchestratorSmokeTests.swift; sourceTree = "<group>"; };
+		B004000000000000000000A1 /* FocusedApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusedApp.swift; sourceTree = "<group>"; };
+		B004000000000000000000A2 /* PasteboardProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteboardProtocol.swift; sourceTree = "<group>"; };
+		B004000000000000000000A3 /* EventInjectorProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventInjectorProtocol.swift; sourceTree = "<group>"; };
+		B004000000000000000000A4 /* Paster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Paster.swift; sourceTree = "<group>"; };
+		B004000000000000000000A5 /* AccessibilityWriterProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityWriterProtocol.swift; sourceTree = "<group>"; };
+		B004000000000000000000B1 /* PasterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasterTests.swift; sourceTree = "<group>"; };
+		B00500000000000000000003 /* SettingsStrings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStrings.swift; sourceTree = "<group>"; };
+		B00500000000000000000005 /* SettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSection.swift; sourceTree = "<group>"; };
+		B00500000000000000000007 /* GeneralSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSection.swift; sourceTree = "<group>"; };
+		B00500000000000000000009 /* ShortcutsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutsSection.swift; sourceTree = "<group>"; };
+		B00500000000000000000011 /* AudioSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSection.swift; sourceTree = "<group>"; };
+		B00500000000000000000013 /* HistorySection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySection.swift; sourceTree = "<group>"; };
+		B0050000000000000000F001 /* MeetingSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingSection.swift; sourceTree = "<group>"; };
+		B00500000000000000000015 /* StartupSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartupSection.swift; sourceTree = "<group>"; };
+		B00500000000000000000017 /* AboutSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutSection.swift; sourceTree = "<group>"; };
+		B00500000000000000000019 /* PermissionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionRow.swift; sourceTree = "<group>"; };
+		B00500000000000000000021 /* SystemSettingsLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemSettingsLink.swift; sourceTree = "<group>"; };
+		B00500000000000000000023 /* ShortcutRecorderField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutRecorderField.swift; sourceTree = "<group>"; };
+		B00500000000000000000025 /* GroqKeyTesting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroqKeyTesting.swift; sourceTree = "<group>"; };
+		B00500000000000000000027 /* LoginItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginItem.swift; sourceTree = "<group>"; };
+		B00500000000000000000029 /* PermissionStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionStatus.swift; sourceTree = "<group>"; };
+		B00500000000000000000031 /* PermissionsCheckerProtocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsCheckerProtocols.swift; sourceTree = "<group>"; };
+		B00500000000000000000033 /* PermissionsChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsChecker.swift; sourceTree = "<group>"; };
+		B00500000000000000000035 /* SettingsTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTestSupport.swift; sourceTree = "<group>"; };
+		B00500000000000000000037 /* GeneralSectionViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSectionViewModelTests.swift; sourceTree = "<group>"; };
+		B00500000000000000000041 /* AudioSectionViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSectionViewModelTests.swift; sourceTree = "<group>"; };
+		B00500000000000000000045 /* StartupSectionViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartupSectionViewModelTests.swift; sourceTree = "<group>"; };
+		B00500000000000000000047 /* PermissionsCheckerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsCheckerTests.swift; sourceTree = "<group>"; };
+		B00500000000000000000049 /* SettingsSceneUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSceneUITests.swift; sourceTree = "<group>"; };
+		B00500000000000000000051 /* AppearanceSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceSection.swift; sourceTree = "<group>"; };
+		B005000000000000000000A1 /* VocabularySection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularySection.swift; sourceTree = "<group>"; };
+		B005000000000000000000B2 /* LocalTranscriptionSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalTranscriptionSection.swift; sourceTree = "<group>"; };
+		B005000000000000000000B3 /* LocalRefinementSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalRefinementSection.swift; sourceTree = "<group>"; };
+		B00500000000000000004401 /* RefineStyleSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefineStyleSection.swift; sourceTree = "<group>"; };
+		B005000000000000000010F1 /* MenuBarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarContent.swift; sourceTree = "<group>"; };
+		B007000000000000000000B1 /* ActivationPolicyTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivationPolicyTracker.swift; sourceTree = "<group>"; };
+		B007000000000000000000B2 /* HistoryStrings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryStrings.swift; sourceTree = "<group>"; };
+		B007000000000000000000B3 /* AppIconResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIconResolver.swift; sourceTree = "<group>"; };
+		B007000000000000000000B4 /* HistoryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViewModel.swift; sourceTree = "<group>"; };
+		B007000000000000000000B5 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
+		B007000000000000000000B6 /* HistoryWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryWindow.swift; sourceTree = "<group>"; };
+		B007000000000000000000B7 /* HistoryViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViewModelTests.swift; sourceTree = "<group>"; };
+		B008000000000000000000B1 /* Notifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notifier.swift; sourceTree = "<group>"; };
+		B008000000000000000000B2 /* NotificationCopy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCopy.swift; sourceTree = "<group>"; };
+		B008000000000000000000B3 /* NotifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotifierTests.swift; sourceTree = "<group>"; };
+		B008000000000000000000B4 /* LoginItemTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginItemTests.swift; sourceTree = "<group>"; };
+		B008000000000000000000B5 /* SystemSettingsLinkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemSettingsLinkTests.swift; sourceTree = "<group>"; };
+		B009000000000000000000A1 /* ErrorPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorPresenter.swift; sourceTree = "<group>"; };
+		B009000000000000000000B1 /* ErrorPresenterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorPresenterTests.swift; sourceTree = "<group>"; };
+		B00C000000000000000000A1 /* AppDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependencies.swift; sourceTree = "<group>"; };
+		B00C000000000000000000B1 /* AppDependenciesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependenciesTests.swift; sourceTree = "<group>"; };
+		B00D000000000000000000A1 /* ConfigStoreSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigStoreSnapshot.swift; sourceTree = "<group>"; };
+		B00D000000000000000000B1 /* ConfigStoreSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigStoreSnapshotTests.swift; sourceTree = "<group>"; };
+		B00E000000000000000000A1 /* HistoryStoreSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryStoreSnapshot.swift; sourceTree = "<group>"; };
+		B00E000000000000000000B1 /* HistoryStoreSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryStoreSnapshotTests.swift; sourceTree = "<group>"; };
+		B00F000000000000000000A1 /* AudioCaptureAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureAdapter.swift; sourceTree = "<group>"; };
+		B00F000000000000000000A2 /* StateMachineAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateMachineAdapter.swift; sourceTree = "<group>"; };
+		B00F000000000000000000A3 /* PasterDeliveryAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasterDeliveryAdapter.swift; sourceTree = "<group>"; };
+		B00F000000000000000000A4 /* PipelineRunnerAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineRunnerAdapter.swift; sourceTree = "<group>"; };
+		B00F000000000000000000A5 /* HistoryRecorderAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryRecorderAdapter.swift; sourceTree = "<group>"; };
+		B00F000000000000000000A7 /* RecordingOrchestrator+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RecordingOrchestrator+Helpers.swift"; sourceTree = "<group>"; };
+		B010000000000000000000A1 /* WhisperModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperModelManager.swift; sourceTree = "<group>"; };
+		B010000000000000000000A2 /* LocalTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalTranscriber.swift; sourceTree = "<group>"; };
+		B010000000000000000000A3 /* AIAvailability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAvailability.swift; sourceTree = "<group>"; };
+		B010000000000000000000A4 /* LocalRefiner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalRefiner.swift; sourceTree = "<group>"; };
+		B00500000000000000004101 /* CursorContextReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorContextReader.swift; sourceTree = "<group>"; };
+		B00500000000000000004102 /* EditObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditObserver.swift; sourceTree = "<group>"; };
+		B010000000000000000000A5 /* LocalTranslator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalTranslator.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		G001000000000000000000G1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DE3214E92FE415BF000EA50B /* WhisperKit in Frameworks */,
+				A001000000000000000000A7 /* Core in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		G001000000000000000000G2 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A001000000000000000000AE /* Core in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		G001000000000000000000G3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		H020000000000000000000H1 /* Meeting */ = {
+			isa = PBXGroup;
+			children = (
+				B020000000000000000000A1 /* MeetingRecorder.swift */,
+				B020000000000000000000B1 /* MeetingProcessor.swift */,
+				B020000000000000000000C1 /* MeetingDetector.swift */,
+				B020000000000000000000A2 /* SystemAudioCapture.swift */,
+				B020000000000000000000A3 /* MicCapture.swift */,
+			);
+			path = Meeting;
+			sourceTree = "<group>";
+		};
+		H001000000000000000000H1 = {
+			isa = PBXGroup;
+			children = (
+				H001000000000000000000H2 /* VoiceType */,
+				H001000000000000000000H3 /* VoiceTypeTests */,
+				H001000000000000000000H4 /* VoiceTypeUITests */,
+				H001000000000000000000H5 /*  */,
+				H001000000000000000000H6 /* build */,
+				H001000000000000000000H7 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		H001000000000000000000H2 /* VoiceType */ = {
+			isa = PBXGroup;
+			children = (
+				H001000000000000000000H8 /* App */,
+				H010000000000000000000H1 /* Features */,
+				H010000000000000000000H2 /* Platform */,
+				H001000000000000000000HA /* Resources */,
+			);
+			path = VoiceType;
+			sourceTree = "<group>";
+		};
+		H001000000000000000000H3 /* VoiceTypeTests */ = {
+			isa = PBXGroup;
+			children = (
+				B001000000000000000000B5 /* AppDelegateSmokeTests.swift */,
+				B002000000000000000000B1 /* WavEncoderTests.swift */,
+				B002000000000000000000B2 /* AudioRecorderTests.swift */,
+				B002000000000000000000B3 /* HUDControllerTests.swift */,
+				B003000000000000000000B1 /* HoldDetectorCoreTests.swift */,
+				B003000000000000000000B2 /* ShortcutManagerTests.swift */,
+				B003000000000000000000B3 /* RecordingOrchestratorSmokeTests.swift */,
+				B004000000000000000000B1 /* PasterTests.swift */,
+				B007000000000000000000B7 /* HistoryViewModelTests.swift */,
+				H002000000000000000000B1 /* Audio */,
+				H00500000000000000000001 /* Settings */,
+				H00500000000000000000002 /* Permissions */,
+				H008000000000000000000H2 /* Notifications */,
+				H008000000000000000000H3 /* AutoStart */,
+				H009000000000000000000H1 /* App */,
+			);
+			path = VoiceTypeTests;
+			sourceTree = "<group>";
+		};
+		H001000000000000000000H4 /* VoiceTypeUITests */ = {
+			isa = PBXGroup;
+			children = (
+				B001000000000000000000B6 /* LaunchUITests.swift */,
+				B00500000000000000000049 /* SettingsSceneUITests.swift */,
+			);
+			path = VoiceTypeUITests;
+			sourceTree = "<group>";
+		};
+		H001000000000000000000H5 /*  */ = {
+			isa = PBXGroup;
+			children = (
+				B001000000000000000000BC /* VoiceTypeCore */,
+			);
+			name = "";
+			sourceTree = "<group>";
+		};
+		H001000000000000000000H6 /* build */ = {
+			isa = PBXGroup;
+			children = (
+				B001000000000000000000B8 /* entitlements.plist */,
+			);
+			path = build;
+			sourceTree = "<group>";
+		};
+		H001000000000000000000H7 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B001000000000000000000B9 /* VoiceType.app */,
+				B001000000000000000000BA /* VoiceTypeTests.xctest */,
+				B001000000000000000000BB /* VoiceTypeUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		H001000000000000000000H8 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				B001000000000000000000B1 /* VoiceTypeApp.swift */,
+				B001000000000000000000B2 /* AppDelegate.swift */,
+				B00C000000000000000000A1 /* AppDependencies.swift */,
+				B00D000000000000000000A1 /* ConfigStoreSnapshot.swift */,
+				B00E000000000000000000A1 /* HistoryStoreSnapshot.swift */,
+				B002000000000000000000A9 /* RecordingOrchestrator.swift */,
+				B00F000000000000000000A7 /* RecordingOrchestrator+Helpers.swift */,
+				B009000000000000000000A1 /* ErrorPresenter.swift */,
+				H00F000000000000000000A1 /* Adapters */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		H001000000000000000000H9 /* MenuBar */ = {
+			isa = PBXGroup;
+			children = (
+				B005000000000000000010F1 /* MenuBarContent.swift */,
+			);
+			path = MenuBar;
+			sourceTree = "<group>";
+		};
+		H001000000000000000000HA /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				B001000000000000000000B4 /* Assets.xcassets */,
+				B001000000000000000000B7 /* Info.plist */,
+				B001000000000000000000C1 /* recording_start.wav */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		H001000000000000000000HB /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				B001000000000000000000BF /* SettingsScene.swift */,
+				B00500000000000000000003 /* SettingsStrings.swift */,
+				B00500000000000000000005 /* SettingsSection.swift */,
+				B00500000000000000000007 /* GeneralSection.swift */,
+				B00500000000000000000009 /* ShortcutsSection.swift */,
+				B00500000000000000000011 /* AudioSection.swift */,
+				B005000000000000000000A1 /* VocabularySection.swift */,
+				B005000000000000000000B2 /* LocalTranscriptionSection.swift */,
+				B005000000000000000000B3 /* LocalRefinementSection.swift */,
+				B00500000000000000004401 /* RefineStyleSection.swift */,
+				B00500000000000000000051 /* AppearanceSection.swift */,
+				B00500000000000000000013 /* HistorySection.swift */,
+				B0050000000000000000F001 /* MeetingSection.swift */,
+				B00500000000000000000015 /* StartupSection.swift */,
+				B00500000000000000000017 /* AboutSection.swift */,
+				B00500000000000000000019 /* PermissionRow.swift */,
+				B00500000000000000000021 /* SystemSettingsLink.swift */,
+				B00500000000000000000023 /* ShortcutRecorderField.swift */,
+				B00500000000000000000025 /* GroqKeyTesting.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		H002000000000000000000A1 /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				B002000000000000000000A1 /* WavEncoder.swift */,
+				B002000000000000000000A2 /* AudioDeviceResolver.swift */,
+				B002000000000000000000A3 /* AudioRecorderError.swift */,
+				B002000000000000000000A4 /* AudioRecorder.swift */,
+				B002000000000000000000D1 /* SoundFeedbackService.swift */,
+				B002000000000000000000D2 /* AudioInputDevice.swift */,
+				B002000000000000000000D3 /* AudioDevicePreview.swift */,
+				B002000000000000000000D4 /* AudioInputResolver.swift */,
+			);
+			path = Audio;
+			sourceTree = "<group>";
+		};
+		H002000000000000000000A2 /* HUD */ = {
+			isa = PBXGroup;
+			children = (
+				B002000000000000000000A5 /* HUDState.swift */,
+				B002000000000000000000A6 /* AuroraWaveform.swift */,
+				B002000000000000000000A7 /* HUDView.swift */,
+				B002000000000000000000A8 /* HUDController.swift */,
+				B002000000000000000000C1 /* NonActivatingPanel.swift */,
+				B002000000000000000000C2 /* HUDIndicatorStyle.swift */,
+				B002000000000000000000C3 /* NotchShape.swift */,
+				B002000000000000000000C4 /* NotchGeometry.swift */,
+				B002000000000000000000C5 /* NotchIndicator.swift */,
+			);
+			path = HUD;
+			sourceTree = "<group>";
+		};
+		H002000000000000000000B1 /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				B002000000000000000000D5 /* AudioInputResolverTests.swift */,
+			);
+			path = Audio;
+			sourceTree = "<group>";
+		};
+		H003000000000000000000A1 /* Shortcut */ = {
+			isa = PBXGroup;
+			children = (
+				B003000000000000000000A1 /* Mode.swift */,
+				B003000000000000000000A3 /* HoldDetectorCore.swift */,
+				B003000000000000000000A4 /* HoldDetector.swift */,
+				B003000000000000000000A5 /* ShortcutManager.swift */,
+			);
+			path = Shortcut;
+			sourceTree = "<group>";
+		};
+		H003000000000000000000A2 /* Permissions */ = {
+			isa = PBXGroup;
+			children = (
+				B003000000000000000000A2 /* AccessibilityChecker.swift */,
+				B00500000000000000000029 /* PermissionStatus.swift */,
+				B00500000000000000000031 /* PermissionsCheckerProtocols.swift */,
+				B00500000000000000000033 /* PermissionsChecker.swift */,
+			);
+			path = Permissions;
+			sourceTree = "<group>";
+		};
+		H004000000000000000000A1 /* Output */ = {
+			isa = PBXGroup;
+			children = (
+				B004000000000000000000A1 /* FocusedApp.swift */,
+				B004000000000000000000A2 /* PasteboardProtocol.swift */,
+				B004000000000000000000A3 /* EventInjectorProtocol.swift */,
+				B004000000000000000000A4 /* Paster.swift */,
+				B004000000000000000000A5 /* AccessibilityWriterProtocol.swift */,
+			);
+			path = Output;
+			sourceTree = "<group>";
+		};
+		H00500000000000000000001 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				B00500000000000000000035 /* SettingsTestSupport.swift */,
+				B00500000000000000000037 /* GeneralSectionViewModelTests.swift */,
+				B00500000000000000000041 /* AudioSectionViewModelTests.swift */,
+				B00500000000000000000045 /* StartupSectionViewModelTests.swift */,
+				B008000000000000000000B5 /* SystemSettingsLinkTests.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		H00500000000000000000002 /* Permissions */ = {
+			isa = PBXGroup;
+			children = (
+				B00500000000000000000047 /* PermissionsCheckerTests.swift */,
+			);
+			path = Permissions;
+			sourceTree = "<group>";
+		};
+		H007000000000000000000H1 /* History */ = {
+			isa = PBXGroup;
+			children = (
+				B007000000000000000000B2 /* HistoryStrings.swift */,
+				B007000000000000000000B3 /* AppIconResolver.swift */,
+				B007000000000000000000B4 /* HistoryViewModel.swift */,
+				B007000000000000000000B5 /* HistoryView.swift */,
+				B007000000000000000000B6 /* HistoryWindow.swift */,
+			);
+			path = History;
+			sourceTree = "<group>";
+		};
+		H008000000000000000000H1 /* Notifications */ = {
+			isa = PBXGroup;
+			children = (
+				B008000000000000000000B1 /* Notifier.swift */,
+				B008000000000000000000B2 /* NotificationCopy.swift */,
+			);
+			path = Notifications;
+			sourceTree = "<group>";
+		};
+		H008000000000000000000H2 /* Notifications */ = {
+			isa = PBXGroup;
+			children = (
+				B008000000000000000000B3 /* NotifierTests.swift */,
+			);
+			path = Notifications;
+			sourceTree = "<group>";
+		};
+		H008000000000000000000H3 /* AutoStart */ = {
+			isa = PBXGroup;
+			children = (
+				B008000000000000000000B4 /* LoginItemTests.swift */,
+			);
+			path = AutoStart;
+			sourceTree = "<group>";
+		};
+		H009000000000000000000H1 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				B009000000000000000000B1 /* ErrorPresenterTests.swift */,
+				B00C000000000000000000B1 /* AppDependenciesTests.swift */,
+				B00D000000000000000000B1 /* ConfigStoreSnapshotTests.swift */,
+				B00E000000000000000000B1 /* HistoryStoreSnapshotTests.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		H00F000000000000000000A1 /* Adapters */ = {
+			isa = PBXGroup;
+			children = (
+				B00F000000000000000000A1 /* AudioCaptureAdapter.swift */,
+				B00F000000000000000000A2 /* StateMachineAdapter.swift */,
+				B00F000000000000000000A3 /* PasterDeliveryAdapter.swift */,
+				B00F000000000000000000A4 /* PipelineRunnerAdapter.swift */,
+				B00F000000000000000000A5 /* HistoryRecorderAdapter.swift */,
+			);
+			path = Adapters;
+			sourceTree = "<group>";
+		};
+		H010000000000000000000H1 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				H010000000000000000000H3 /* Recording */,
+				H001000000000000000000HB /* Settings */,
+				H007000000000000000000H1 /* History */,
+				H001000000000000000000H9 /* MenuBar */,
+				H020000000000000000000H1 /* Meeting */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		H010000000000000000000H2 /* Platform */ = {
+			isa = PBXGroup;
+			children = (
+				H008000000000000000000H1 /* Notifications */,
+				H003000000000000000000A2 /* Permissions */,
+				H010000000000000000000H4 /* AutoStart */,
+				H010000000000000000000H5 /* ActivationPolicy */,
+			);
+			path = Platform;
+			sourceTree = "<group>";
+		};
+		H010000000000000000000H3 /* Recording */ = {
+			isa = PBXGroup;
+			children = (
+				H002000000000000000000A1 /* Audio */,
+				H004000000000000000000A1 /* Output */,
+				H003000000000000000000A1 /* Shortcut */,
+				H002000000000000000000A2 /* HUD */,
+				H010000000000000000000H6 /* Transcription */,
+				H010000000000000000000H7 /* Refinement */,
+			);
+			path = Recording;
+			sourceTree = "<group>";
+		};
+		H010000000000000000000H6 /* Transcription */ = {
+			isa = PBXGroup;
+			children = (
+				B010000000000000000000A1 /* WhisperModelManager.swift */,
+				B010000000000000000000A2 /* LocalTranscriber.swift */,
+			);
+			path = Transcription;
+			sourceTree = "<group>";
+		};
+		H010000000000000000000H7 /* Refinement */ = {
+			isa = PBXGroup;
+			children = (
+				B010000000000000000000A3 /* AIAvailability.swift */,
+				B010000000000000000000A4 /* LocalRefiner.swift */,
+				B00500000000000000004101 /* CursorContextReader.swift */,
+				B00500000000000000004102 /* EditObserver.swift */,
+				B010000000000000000000A5 /* LocalTranslator.swift */,
+			);
+			path = Refinement;
+			sourceTree = "<group>";
+		};
+		H010000000000000000000H4 /* AutoStart */ = {
+			isa = PBXGroup;
+			children = (
+				B00500000000000000000027 /* LoginItem.swift */,
+			);
+			path = AutoStart;
+			sourceTree = "<group>";
+		};
+		H010000000000000000000H5 /* ActivationPolicy */ = {
+			isa = PBXGroup;
+			children = (
+				B007000000000000000000B1 /* ActivationPolicyTracker.swift */,
+			);
+			path = ActivationPolicy;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		F001000000000000000000F1 /* VoiceType */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = I001000000000000000000I1 /* Build configuration list for PBXNativeTarget "VoiceType" */;
+			buildPhases = (
+				J001000000000000000000J1 /* Sources */,
+				G001000000000000000000G1 /* Frameworks */,
+				K001000000000000000000K1 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = VoiceType;
+			packageProductDependencies = (
+				D001000000000000000000D1 /* Core */,
+				DE3214E82FE415BF000EA50B /* WhisperKit */,
+			);
+			productName = VoiceType;
+			productReference = B001000000000000000000B9 /* VoiceType.app */;
+			productType = "com.apple.product-type.application";
+		};
+		F001000000000000000000F2 /* VoiceTypeTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = I001000000000000000000I2 /* Build configuration list for PBXNativeTarget "VoiceTypeTests" */;
+			buildPhases = (
+				J001000000000000000000J2 /* Sources */,
+				G001000000000000000000G2 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				L001000000000000000000L1 /* PBXTargetDependency */,
+			);
+			name = VoiceTypeTests;
+			packageProductDependencies = (
+				D001000000000000000000D2 /* Core */,
+			);
+			productName = VoiceTypeTests;
+			productReference = B001000000000000000000BA /* VoiceTypeTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		F001000000000000000000F3 /* VoiceTypeUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = I001000000000000000000I3 /* Build configuration list for PBXNativeTarget "VoiceTypeUITests" */;
+			buildPhases = (
+				J001000000000000000000J3 /* Sources */,
+				G001000000000000000000G3 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				L001000000000000000000L2 /* PBXTargetDependency */,
+			);
+			name = VoiceTypeUITests;
+			productName = VoiceTypeUITests;
+			productReference = B001000000000000000000BB /* VoiceTypeUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		E001000000000000000000E1 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					F001000000000000000000F1 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+					F001000000000000000000F2 = {
+						CreatedOnToolsVersion = 15.0;
+						TestTargetID = F001000000000000000000F1;
+					};
+					F001000000000000000000F3 = {
+						CreatedOnToolsVersion = 15.0;
+						TestTargetID = F001000000000000000000F1;
+					};
+				};
+			};
+			buildConfigurationList = I001000000000000000000I0 /* Build configuration list for PBXProject "VoiceType" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+				"pt-BR",
+			);
+			mainGroup = H001000000000000000000H1;
+			packageReferences = (
+				M001000000000000000000M1 /* XCLocalSwiftPackageReference "VoiceTypeCore" */,
+				DE3214E72FE415BF000EA50B /* XCRemoteSwiftPackageReference "WhisperKit" */,
+			);
+			productRefGroup = H001000000000000000000H7 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				F001000000000000000000F1 /* VoiceType */,
+				F001000000000000000000F2 /* VoiceTypeTests */,
+				F001000000000000000000F3 /* VoiceTypeUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		K001000000000000000000K1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A001000000000000000000A4 /* Assets.xcassets in Resources */,
+				A001000000000000000000C1 /* recording_start.wav in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		J001000000000000000000J1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A008000000000000000000A1 /* Notifier.swift in Sources */,
+				A008000000000000000000A2 /* NotificationCopy.swift in Sources */,
+				A001000000000000000000A1 /* VoiceTypeApp.swift in Sources */,
+				A001000000000000000000A2 /* AppDelegate.swift in Sources */,
+				A00C000000000000000000A1 /* AppDependencies.swift in Sources */,
+				A00D000000000000000000A1 /* ConfigStoreSnapshot.swift in Sources */,
+				A00E000000000000000000A1 /* HistoryStoreSnapshot.swift in Sources */,
+				A001000000000000000000AA /* SettingsScene.swift in Sources */,
+				A002000000000000000000A1 /* WavEncoder.swift in Sources */,
+				A002000000000000000000A2 /* AudioDeviceResolver.swift in Sources */,
+				A002000000000000000000A3 /* AudioRecorderError.swift in Sources */,
+				A002000000000000000000A4 /* AudioRecorder.swift in Sources */,
+				A002000000000000000000D1 /* SoundFeedbackService.swift in Sources */,
+				A002000000000000000000D2 /* AudioInputDevice.swift in Sources */,
+				A002000000000000000000D3 /* AudioDevicePreview.swift in Sources */,
+				A002000000000000000000D4 /* AudioInputResolver.swift in Sources */,
+				A002000000000000000000A5 /* HUDState.swift in Sources */,
+				A002000000000000000000A6 /* AuroraWaveform.swift in Sources */,
+				A002000000000000000000A7 /* HUDView.swift in Sources */,
+				A002000000000000000000A8 /* HUDController.swift in Sources */,
+				A002000000000000000000C1 /* NonActivatingPanel.swift in Sources */,
+				A002000000000000000000C2 /* HUDIndicatorStyle.swift in Sources */,
+				A002000000000000000000C3 /* NotchShape.swift in Sources */,
+				A002000000000000000000C4 /* NotchGeometry.swift in Sources */,
+				A002000000000000000000C5 /* NotchIndicator.swift in Sources */,
+				A002000000000000000000A9 /* RecordingOrchestrator.swift in Sources */,
+				A009000000000000000000A1 /* ErrorPresenter.swift in Sources */,
+				A003000000000000000000A1 /* Mode.swift in Sources */,
+				A003000000000000000000A2 /* AccessibilityChecker.swift in Sources */,
+				A003000000000000000000A3 /* HoldDetectorCore.swift in Sources */,
+				A003000000000000000000A4 /* HoldDetector.swift in Sources */,
+				A003000000000000000000A5 /* ShortcutManager.swift in Sources */,
+				A004000000000000000000A1 /* FocusedApp.swift in Sources */,
+				A004000000000000000000A2 /* PasteboardProtocol.swift in Sources */,
+				A004000000000000000000A3 /* EventInjectorProtocol.swift in Sources */,
+				A004000000000000000000A4 /* Paster.swift in Sources */,
+				A004000000000000000000A5 /* AccessibilityWriterProtocol.swift in Sources */,
+				A00500000000000000000004 /* SettingsStrings.swift in Sources */,
+				A00500000000000000000006 /* SettingsSection.swift in Sources */,
+				A00500000000000000000008 /* GeneralSection.swift in Sources */,
+				A00500000000000000000010 /* ShortcutsSection.swift in Sources */,
+				A00500000000000000000012 /* AudioSection.swift in Sources */,
+				A005000000000000000000A1 /* VocabularySection.swift in Sources */,
+				A005000000000000000000B2 /* LocalTranscriptionSection.swift in Sources */,
+				A005000000000000000000B3 /* LocalRefinementSection.swift in Sources */,
+				A00500000000000000004401 /* RefineStyleSection.swift in Sources */,
+				A00500000000000000000052 /* AppearanceSection.swift in Sources */,
+				A00500000000000000000014 /* HistorySection.swift in Sources */,
+				A0050000000000000000F001 /* MeetingSection.swift in Sources */,
+				A00500000000000000000016 /* StartupSection.swift in Sources */,
+				A00500000000000000000018 /* AboutSection.swift in Sources */,
+				A00500000000000000000020 /* PermissionRow.swift in Sources */,
+				A00500000000000000000022 /* SystemSettingsLink.swift in Sources */,
+				A00500000000000000000024 /* ShortcutRecorderField.swift in Sources */,
+				A00500000000000000000026 /* GroqKeyTesting.swift in Sources */,
+				A00500000000000000000028 /* LoginItem.swift in Sources */,
+				A00500000000000000000030 /* PermissionStatus.swift in Sources */,
+				A00500000000000000000032 /* PermissionsCheckerProtocols.swift in Sources */,
+				A00500000000000000000034 /* PermissionsChecker.swift in Sources */,
+				A005000000000000000010F2 /* MenuBarContent.swift in Sources */,
+				A020000000000000000000A1 /* MeetingRecorder.swift in Sources */,
+				A020000000000000000000B1 /* MeetingProcessor.swift in Sources */,
+				A020000000000000000000C1 /* MeetingDetector.swift in Sources */,
+				A020000000000000000000A2 /* SystemAudioCapture.swift in Sources */,
+				A020000000000000000000A3 /* MicCapture.swift in Sources */,
+				A007000000000000000000A1 /* ActivationPolicyTracker.swift in Sources */,
+				A007000000000000000000A2 /* HistoryStrings.swift in Sources */,
+				A007000000000000000000A3 /* AppIconResolver.swift in Sources */,
+				A007000000000000000000A4 /* HistoryViewModel.swift in Sources */,
+				A007000000000000000000A5 /* HistoryView.swift in Sources */,
+				A007000000000000000000A6 /* HistoryWindow.swift in Sources */,
+				A00F000000000000000000A1 /* AudioCaptureAdapter.swift in Sources */,
+				A00F000000000000000000A2 /* StateMachineAdapter.swift in Sources */,
+				A00F000000000000000000A3 /* PasterDeliveryAdapter.swift in Sources */,
+				A00F000000000000000000A4 /* PipelineRunnerAdapter.swift in Sources */,
+				A00F000000000000000000A5 /* HistoryRecorderAdapter.swift in Sources */,
+				A00F000000000000000000A7 /* RecordingOrchestrator+Helpers.swift in Sources */,
+				A010000000000000000000A1 /* WhisperModelManager.swift in Sources */,
+				A010000000000000000000A2 /* LocalTranscriber.swift in Sources */,
+				A010000000000000000000A3 /* AIAvailability.swift in Sources */,
+				A010000000000000000000A4 /* LocalRefiner.swift in Sources */,
+				A00500000000000000004101 /* CursorContextReader.swift in Sources */,
+				A00500000000000000004102 /* EditObserver.swift in Sources */,
+				A010000000000000000000A5 /* LocalTranslator.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		J001000000000000000000J2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A008000000000000000000A3 /* NotifierTests.swift in Sources */,
+				A008000000000000000000A4 /* LoginItemTests.swift in Sources */,
+				A008000000000000000000A5 /* SystemSettingsLinkTests.swift in Sources */,
+				A001000000000000000000A5 /* AppDelegateSmokeTests.swift in Sources */,
+				A002000000000000000000B1 /* WavEncoderTests.swift in Sources */,
+				A002000000000000000000B2 /* AudioRecorderTests.swift in Sources */,
+				A002000000000000000000B3 /* HUDControllerTests.swift in Sources */,
+				A002000000000000000000D5 /* AudioInputResolverTests.swift in Sources */,
+				A003000000000000000000B1 /* HoldDetectorCoreTests.swift in Sources */,
+				A003000000000000000000B2 /* ShortcutManagerTests.swift in Sources */,
+				A003000000000000000000B3 /* RecordingOrchestratorSmokeTests.swift in Sources */,
+				A009000000000000000000B1 /* ErrorPresenterTests.swift in Sources */,
+				A00C000000000000000000B1 /* AppDependenciesTests.swift in Sources */,
+				A00D000000000000000000B1 /* ConfigStoreSnapshotTests.swift in Sources */,
+				A00E000000000000000000B1 /* HistoryStoreSnapshotTests.swift in Sources */,
+				A004000000000000000000B1 /* PasterTests.swift in Sources */,
+				A00500000000000000000036 /* SettingsTestSupport.swift in Sources */,
+				A00500000000000000000038 /* GeneralSectionViewModelTests.swift in Sources */,
+				A00500000000000000000042 /* AudioSectionViewModelTests.swift in Sources */,
+				A00500000000000000000046 /* StartupSectionViewModelTests.swift in Sources */,
+				A00500000000000000000048 /* PermissionsCheckerTests.swift in Sources */,
+				A007000000000000000000A7 /* HistoryViewModelTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		J001000000000000000000J3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A001000000000000000000A6 /* LaunchUITests.swift in Sources */,
+				A00500000000000000000050 /* SettingsSceneUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		L001000000000000000000L1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F001000000000000000000F1 /* VoiceType */;
+			targetProxy = C001000000000000000000C1 /* PBXContainerItemProxy */;
+		};
+		L001000000000000000000L2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F001000000000000000000F1 /* VoiceType */;
+			targetProxy = C001000000000000000000C2 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		N001000000000000000000N1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.10;
+			};
+			name = Debug;
+		};
+		N001000000000000000000N2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.10;
+			};
+			name = Release;
+		};
+		N001000000000000000000N3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = build/entitlements.plist;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = VoiceType/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.macsilva.VoiceType;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Debug;
+		};
+		N001000000000000000000N4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = build/entitlements.plist;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = VoiceType/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.macsilva.VoiceType;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Release;
+		};
+		N001000000000000000000N5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.macsilva.VoiceTypeTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/VoiceType.app/Contents/MacOS/VoiceType";
+			};
+			name = Debug;
+		};
+		N001000000000000000000N6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.macsilva.VoiceTypeTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/VoiceType.app/Contents/MacOS/VoiceType";
+			};
+			name = Release;
+		};
+		N001000000000000000000N7 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.macsilva.VoiceTypeUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				TEST_TARGET_NAME = VoiceType;
+			};
+			name = Debug;
+		};
+		N001000000000000000000N8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.macsilva.VoiceTypeUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				TEST_TARGET_NAME = VoiceType;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		I001000000000000000000I0 /* Build configuration list for PBXProject "VoiceType" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				N001000000000000000000N1 /* Debug */,
+				N001000000000000000000N2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		I001000000000000000000I1 /* Build configuration list for PBXNativeTarget "VoiceType" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				N001000000000000000000N3 /* Debug */,
+				N001000000000000000000N4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		I001000000000000000000I2 /* Build configuration list for PBXNativeTarget "VoiceTypeTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				N001000000000000000000N5 /* Debug */,
+				N001000000000000000000N6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		I001000000000000000000I3 /* Build configuration list for PBXNativeTarget "VoiceTypeUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				N001000000000000000000N7 /* Debug */,
+				N001000000000000000000N8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		M001000000000000000000M1 /* XCLocalSwiftPackageReference "VoiceTypeCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = VoiceTypeCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		DE3214E72FE415BF000EA50B /* XCRemoteSwiftPackageReference "WhisperKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/argmaxinc/WhisperKit";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		D001000000000000000000D1 /* Core */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Core;
+		};
+		D001000000000000000000D2 /* Core */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Core;
+		};
+		DE3214E82FE415BF000EA50B /* WhisperKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = DE3214E72FE415BF000EA50B /* XCRemoteSwiftPackageReference "WhisperKit" */;
+			productName = WhisperKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = E001000000000000000000E1 /* Project object */;
+}
