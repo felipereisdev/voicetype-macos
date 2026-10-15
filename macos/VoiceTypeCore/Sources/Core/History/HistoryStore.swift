@@ -67,7 +67,9 @@ public actor HistoryStore {
     }
 
     @discardableResult
-    public func subscribe(_ handler: @escaping @Sendable ([HistoryEntry]) -> Void) -> HistoryCancellable {
+    public func subscribe(_ handler: @escaping @Sendable ([HistoryEntry]) -> Void) async -> HistoryCancellable {
+        // Load first: the initial snapshot must reflect disk, not the empty pre-load state.
+        await ensureLoaded()
         let token = UUID()
         subscribers[token] = handler
         let snapshot = entries

@@ -67,12 +67,12 @@ struct HistoryView: View {
                     .font(.system(.body, design: .rounded))
                     .foregroundStyle(.secondary)
             }
-            .width(min: 140, ideal: 160)
+            .width(min: 140, ideal: 150, max: 170)
 
             TableColumn(HistoryStrings.columnMode) { entry in
                 ModeBadge(mode: entry.mode)
             }
-            .width(min: 88, ideal: 96)
+            .width(min: 80, ideal: 88, max: 96)
 
             TableColumn(HistoryStrings.columnApp) { entry in
                 HStack(spacing: 6) {
@@ -83,7 +83,7 @@ struct HistoryView: View {
                         .lineLimit(1)
                 }
             }
-            .width(min: 140, ideal: 180)
+            .width(min: 110, ideal: 140, max: 180)
 
             TableColumn(HistoryStrings.columnText) { entry in
                 Text(entry.text)
@@ -91,6 +91,8 @@ struct HistoryView: View {
                     .multilineTextAlignment(.leading)
                     .help(entry.text)
             }
+            // Capped neighbours leave the remaining width to the text.
+            .width(min: 200, ideal: 600)
 
             TableColumn(HistoryStrings.columnActions) { entry in
                 HStack(spacing: 6) {
@@ -127,7 +129,7 @@ struct HistoryView: View {
                     }
                 }
             }
-            .width(min: 110, ideal: 120)
+            .width(min: 90, ideal: 96, max: 110)
         }
     }
 }

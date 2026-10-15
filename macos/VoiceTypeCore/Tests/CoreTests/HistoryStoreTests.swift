@@ -114,6 +114,24 @@ struct HistoryStoreTests {
         token.cancel()
     }
 
+    @Test("subscribe num store recém-aberto entrega o que está no disco")
+    func subscribeLoadsFromDisk() async throws {
+        let (writer, file) = makeStore()
+        await writer.add(makeEntry("persisted"))
+
+        actor Box {
+            var value: [HistoryEntry]?
+            func set(_ v: [HistoryEntry]) { if value == nil { value = v } }
+            func get() -> [HistoryEntry]? { value }
+        }
+        let box = Box()
+        let fresh = HistoryStore(fileURL: file)
+        let token = await fresh.subscribe { snap in Task { await box.set(snap) } }
+        try await Task.sleep(nanoseconds: 50_000_000)
+        #expect(await box.get()?.first?.text == "persisted")
+        token.cancel()
+    }
+
     @Test("subscribe — cancel para de notificar")
     func subscriberCancel() async throws {
         let (store, _) = makeStore()
