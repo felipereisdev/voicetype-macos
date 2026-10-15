@@ -276,11 +276,12 @@ final class RecordingOrchestrator {
         hud.show(state: .processing)
 
         let cfg = (try? await configStore.load()) ?? AppConfig()
-        guard let target = await preflight(cfg: cfg, stateMachine: stateMachine) else { return }
-
-        // A voice note lands in Obsidian: refine style + history follow it, not the focused app.
+        // A voice note lands in Obsidian: refine style + history follow it, not the
+        // focused app — so it needs no target (none when VoiceType itself is in front).
         let isVoiceNote = capturedMode == .voiceNote
-        let bundleID = isVoiceNote ? DailyNote.obsidianBundleID : target.bundleIdentifier
+        guard await preflight(cfg: cfg, requiresTarget: !isVoiceNote, stateMachine: stateMachine) else { return }
+        let target = capturedTarget
+        let bundleID = isVoiceNote ? DailyNote.obsidianBundleID : (target?.bundleIdentifier ?? "")
         let vault = URL(fileURLWithPath: (cfg.meetingNotesFolder as NSString).expandingTildeInPath, isDirectory: true)
 
         var pipelineMode: Pipeline.Mode = (capturedMode == .translate) ? .translate : .refine

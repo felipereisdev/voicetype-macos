@@ -41,6 +41,7 @@ struct ShortcutRecorderField: View {
 
     private func startCapture() {
         isCapturing = true
+        HoldDetector.pause()
         let mon = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { event in
             if event.type == .flagsChanged {
                 handleFlags(event)
@@ -53,6 +54,7 @@ struct ShortcutRecorderField: View {
     }
 
     private func stopCapture() {
+        if isCapturing { HoldDetector.resume() }
         if let m = monitor { NSEvent.removeMonitor(m) }
         monitor = nil
         isCapturing = false

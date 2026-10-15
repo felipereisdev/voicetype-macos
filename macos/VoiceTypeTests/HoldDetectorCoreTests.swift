@@ -703,3 +703,12 @@ struct ModifierOnlyTests {
         #expect(spy.log == ["press", "release"])
     }
 }
+
+@Test("shortcut overlap: equal, contained or aliased keys conflict")
+func shortcutOverlap() {
+    #expect(ShortcutsSection.overlaps("Control+Shift", "Control+Shift+N"))
+    #expect(ShortcutsSection.overlaps("CommandOrControl+L", "Command+Shift+L"))
+    #expect(ShortcutsSection.overlaps("Alt+N", "Option+N"))
+    #expect(!ShortcutsSection.overlaps("Control+Shift", "Alt+N"))
+    #expect(!ShortcutsSection.overlaps("", "Alt+N"))
+}

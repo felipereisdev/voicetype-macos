@@ -120,26 +120,27 @@ extension RecordingOrchestrator {
         }
     }
 
-    // Checks that we have a Groq key + a capture target. On failure notifies +
-    // resets and returns nil so the caller bails out.
-    func preflight(cfg: AppConfig, stateMachine: AppStateMachine) async -> FrontmostAppSnapshot? {
+    // Checks that we have a Groq key + (unless the take doesn't paste, like a
+    // voice note) a capture target. On failure notifies + resets and returns
+    // false so the caller bails out.
+    func preflight(cfg: AppConfig, requiresTarget: Bool, stateMachine: AppStateMachine) async -> Bool {
         guard !cfg.groq.apiKey.isEmpty else {
             await notifier.error(
                 title: NotificationCopy.missingGroqKeyTitle,
                 body: NotificationCopy.missingGroqKeyBody
             )
             await reset(stateMachine: stateMachine)
-            return nil
+            return false
         }
-        guard let target = capturedTarget else {
+        guard !requiresTarget || capturedTarget != nil else {
             await notifier.error(
                 title: NotificationCopy.noTargetTitle,
                 body: NotificationCopy.noTargetBody
             )
             await reset(stateMachine: stateMachine)
-            return nil
+            return false
         }
-        return target
+        return true
     }
 
     // Surfaces the various pipeline failure modes as the matching user-facing

@@ -86,6 +86,23 @@ final class HoldDetector: @unchecked Sendable {
     /// pressedEvents.next()` they expect. Production code never flips this.
     nonisolated(unsafe) static var skipTapInstall: Bool = false
 
+    /// Shortcut recorders capturing right now (each pauses/resumes only its
+    /// own capture). While > 0, registered shortcuts neither fire nor swallow
+    /// the keys being recorded. Main thread only (recorder UI + tap callback
+    /// both run on the main runloop).
+    nonisolated(unsafe) private static var pauseCount = 0
+    // Key-ups were dropped while paused: reconcile on the first event after.
+    nonisolated(unsafe) private static var needsReconcile = false
+
+    static func pause() {
+        pauseCount += 1
+        needsReconcile = true
+    }
+
+    static func resume() {
+        pauseCount = max(0, pauseCount - 1)
+    }
+
     func configure(cancelWindow: TimeInterval, handsFreeEnabled: Bool, upgradeKeycode: Int?) {
         lock.lock()
         core.cancelWindow = cancelWindow
@@ -334,6 +351,14 @@ final class HoldDetector: @unchecked Sendable {
     private static let tapCallback: CGEventTapCallBack = { _, type, event, userInfo in
         guard let userInfo else { return Unmanaged.passUnretained(event) }
         let detector = Unmanaged<HoldDetector>.fromOpaque(userInfo).takeUnretainedValue()
+
+        if type == .keyDown || type == .keyUp || type == .flagsChanged {
+            if HoldDetector.pauseCount > 0 { return Unmanaged.passUnretained(event) }
+            if HoldDetector.needsReconcile {
+                HoldDetector.needsReconcile = false
+                detector.reconcile()
+            }
+        }
 
         let keycode = Int(event.getIntegerValueField(.keyboardEventKeycode))
         let flags = event.flags
