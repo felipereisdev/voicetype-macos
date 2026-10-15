@@ -136,7 +136,7 @@ enum SettingsStrings {
     static let meetingOrgName = "Organização"
     static let meetingClientName = "Cliente"
     static let meetingAliasesLabel = "Aliases (separados por vírgula)"
-    static let meetingAliasesPrompt = "ex.: SF, SubFac"
+    static let meetingAliasesPrompt = "ex.: ACME, Acme Corp"
     static let meetingAddOrg = "Adicionar organização"
     static let meetingAddClient = "Adicionar cliente"
     static let meetingRemoveOrg = "Remover organização"
