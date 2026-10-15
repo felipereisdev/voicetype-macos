@@ -61,36 +61,75 @@ struct MeetingSection: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section(SettingsStrings.meetingOrgsHeader) {
-                ForEach($draft) { $org in
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            TextField(SettingsStrings.meetingOrgName, text: $org.name)
-                            Button(SettingsStrings.meetingRemove, role: .destructive) {
-                                draft.removeAll { $0.id == org.id }
-                            }
-                        }
-                        TextField(SettingsStrings.meetingAliases, text: $org.aliases)
-                        ForEach($org.clients) { $client in
-                            HStack {
-                                TextField(SettingsStrings.meetingClientName, text: $client.name)
-                                TextField(SettingsStrings.meetingAliases, text: $client.aliases)
-                                Button(SettingsStrings.meetingRemove, role: .destructive) {
-                                    org.clients.removeAll { $0.id == client.id }
-                                }
-                            }
-                            .padding(.leading, 16)
-                        }
-                        Button(SettingsStrings.meetingAddClient) { org.clients.append(ClientDraft()) }
-                            .padding(.leading, 16)
-                    }
-                    .padding(.vertical, 4)
-                }
-                Button(SettingsStrings.meetingAddOrg) { draft.append(OrgDraft()) }
-
+            Section {
                 Text(SettingsStrings.meetingOrgsHelp)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            } header: {
+                Text(SettingsStrings.meetingOrgsHeader)
+            }
+
+            ForEach($draft) { $org in
+                Section {
+                    HStack {
+                        Image(systemName: "building.2")
+                            .foregroundStyle(.secondary)
+                        TextField(SettingsStrings.meetingOrgName, text: $org.name,
+                                  prompt: Text(SettingsStrings.meetingOrgName))
+                            .labelsHidden()
+                            .multilineTextAlignment(.leading)
+                            .font(.headline)
+                        Button(role: .destructive) {
+                            draft.removeAll { $0.id == org.id }
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .buttonStyle(.borderless)
+                        .help(SettingsStrings.meetingRemoveOrg)
+                    }
+                    TextField(SettingsStrings.meetingAliasesLabel, text: $org.aliases,
+                              prompt: Text(SettingsStrings.meetingAliasesPrompt))
+                    ForEach($org.clients) { $client in
+                        HStack(spacing: 8) {
+                            Image(systemName: "person.crop.square")
+                                .foregroundStyle(.secondary)
+                            TextField(SettingsStrings.meetingClientName, text: $client.name,
+                                      prompt: Text(SettingsStrings.meetingClientName))
+                                .labelsHidden()
+                                .multilineTextAlignment(.leading)
+                                .frame(width: 160)
+                            TextField(SettingsStrings.meetingAliasesLabel, text: $client.aliases,
+                                      prompt: Text(SettingsStrings.meetingAliasesLabel))
+                                .labelsHidden()
+                                .multilineTextAlignment(.leading)
+                                .foregroundStyle(.secondary)
+                            Button(role: .destructive) {
+                                org.clients.removeAll { $0.id == client.id }
+                            } label: {
+                                Image(systemName: "minus.circle")
+                            }
+                            .buttonStyle(.borderless)
+                            .help(SettingsStrings.meetingRemoveClient)
+                        }
+                        .padding(.leading, 12)
+                    }
+                    Button {
+                        org.clients.append(ClientDraft())
+                    } label: {
+                        Label(SettingsStrings.meetingAddClient, systemImage: "plus")
+                    }
+                    .buttonStyle(.borderless)
+                    .padding(.leading, 12)
+                }
+            }
+
+            Section {
+                Button {
+                    draft.append(OrgDraft())
+                } label: {
+                    Label(SettingsStrings.meetingAddOrg, systemImage: "plus.circle")
+                }
+                .buttonStyle(.borderless)
                 if !draft.contains(where: { $0.name.trimmingCharacters(in: .whitespaces) == MeetingOrg.fallbackName }) {
                     Text(SettingsStrings.meetingFallbackMissing)
                         .font(.caption)
