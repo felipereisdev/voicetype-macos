@@ -1,7 +1,8 @@
 import Foundation
 
 // Turns the per-track ASR output of a meeting into the merged
-// "[mm:ss] Você: …" / "[mm:ss] Outros: …" transcript fed to the summarizer.
+// "[mm:ss] Você: …" / "[mm:ss] Outros: …" (or "Outro 1", "Outro 2" once the
+// system track is diarized) transcript fed to the summarizer.
 // Pure: no WhisperKit, no I/O beyond the JSON checkpoint helpers.
 
 /// One ASR segment, already placed on the meeting clock.
@@ -12,13 +13,36 @@ public struct MeetingUtterance: Codable, Sendable, Equatable {
     public var end: Double
     public var text: String
     public var compressionRatio: Double
+    /// 1-based remote speaker from system-track diarization; nil = unknown
+    /// (mic track, diarization off/failed, or a single remote voice).
+    public var speaker: Int?
 
-    public init(track: MeetingTrack, start: Double, end: Double, text: String, compressionRatio: Double = 0) {
+    public init(track: MeetingTrack, start: Double, end: Double, text: String, compressionRatio: Double = 0, speaker: Int? = nil) {
         self.track = track
         self.start = start
         self.end = end
         self.text = text
         self.compressionRatio = compressionRatio
+        self.speaker = speaker
+    }
+
+    /// Transcript label. The mic is always the user; a system voice never is.
+    var label: String {
+        if track == .mic { return "Você" }
+        return speaker.map { "Outro \($0)" } ?? "Outros"
+    }
+}
+
+/// One diarized stretch of the system track, on the meeting clock.
+public struct MeetingSpeakerTurn: Codable, Sendable, Equatable {
+    public var start: Double
+    public var end: Double
+    public var speaker: String
+
+    public init(start: Double, end: Double, speaker: String) {
+        self.start = start
+        self.end = end
+        self.speaker = speaker
     }
 }
 
@@ -86,20 +110,59 @@ public enum MeetingTranscript {
         return (system + mic).sorted { ($0.start, $0.track == .mic ? 1 : 0) < ($1.start, $1.track == .mic ? 1 : 0) }
     }
 
+    /// Tags each system utterance with the diarized speaker it overlaps most —
+    /// or, with no overlap (Whisper and the diarizer cut time differently), the
+    /// nearest turn within `maxGap` s — numbered 1, 2, … by first appearance.
+    /// Mic utterances are never touched, so a remote voice can't become "Você".
+    /// With fewer than two remote speakers the tags are dropped: "Outro 1"
+    /// alone says less than "Outros".
+    public static func assignSpeakers(
+        _ utterances: [MeetingUtterance], turns: [MeetingSpeakerTurn], maxGap: Double = 3
+    ) -> [MeetingUtterance] {
+        var numbers: [String: Int] = [:]
+        var tagged = utterances.map { u -> MeetingUtterance in
+            var u = u
+            u.speaker = nil
+            guard u.track == .system else { return u }
+            var best: (id: String, overlap: Double)?
+            for t in turns {
+                let overlap = min(u.end, t.end) - max(u.start, t.start)
+                if overlap > 0, overlap > (best?.overlap ?? 0) { best = (t.speaker, overlap) }
+            }
+            if best == nil {
+                let nearest = turns.min { gap(u, $0) < gap(u, $1) }
+                if let nearest, gap(u, nearest) <= maxGap { best = (nearest.speaker, 0) }
+            }
+            guard let id = best?.id else { return u }
+            u.speaker = numbers[id] ?? {
+                numbers[id] = numbers.count + 1
+                return numbers.count
+            }()
+            return u
+        }
+        if numbers.count < 2 {
+            tagged = tagged.map { var u = $0; u.speaker = nil; return u }
+        }
+        return tagged
+    }
+
+    private static func gap(_ u: MeetingUtterance, _ t: MeetingSpeakerTurn) -> Double {
+        max(t.start - u.end, u.start - t.end, 0)
+    }
+
     /// `[mm:ss] Você: …` lines, consecutive turns of the same speaker coalesced.
     /// Input must already be processed (clean + ordered).
     public static func render(_ utterances: [MeetingUtterance]) -> String {
         var lines: [String] = []
-        var last: MeetingTrack?
+        var last: String?
         for u in utterances {
-            if u.track == last, !lines.isEmpty {
+            if u.label == last, !lines.isEmpty {
                 lines[lines.count - 1] += " " + u.text
             } else {
                 let s = max(0, Int(u.start))
-                let speaker = u.track == .mic ? "Você" : "Outros"
-                lines.append(String(format: "[%02d:%02d] %@: %@", s / 60, s % 60, speaker, u.text))
+                lines.append(String(format: "[%02d:%02d] %@: %@", s / 60, s % 60, u.label, u.text))
             }
-            last = u.track
+            last = u.label
         }
         return lines.joined(separator: "\n")
     }

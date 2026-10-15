@@ -4,15 +4,16 @@ import WhisperKit
 import os
 
 /// Post-capture pipeline for one meeting directory (#74 step 2):
-/// WhisperKit large-v3-turbo per segment → hallucination filter + echo dedupe
-/// + merge (Core) → summary via the assistant CLI → Markdown note.
+/// WhisperKit large-v3 per segment → system-track diarization (FluidAudio)
+/// → hallucination filter + echo dedupe + merge (Core) → summary via the
+/// assistant CLI → Markdown note.
 ///
 /// Resumable: per-segment ASR output is checkpointed in `transcript.json` and
 /// the note identity/paths in `pipeline.json`, so a quit, crash or sleep never
 /// forces re-transcribing. Runs are serialized; the actor keeps everything
 /// off the main thread.
 actor MeetingProcessor {
-    /// Turbo: ~10× real time on a 75 min meeting (spike 4). Separate from the
+    /// large-v3 (626 MB, not turbo): ~10× real time on a 75 min meeting (spike 4). Separate from the
     /// dictation whisper-small and only held in memory while processing.
     static let modelVariant = "openai_whisper-large-v3-v20240930_626MB"
 
@@ -65,7 +66,11 @@ actor MeetingProcessor {
         do {
             let manifest = try MeetingManifest.decode(Data(contentsOf: dir.appendingPathComponent(MeetingManifest.fileName)))
             let utterances = try await transcribe(dir, manifest)
-            let transcript = MeetingTranscript.render(MeetingTranscript.process(utterances))
+            let turns = await MeetingDiarizer.turns(for: dir, manifest: manifest) ?? []
+            // After process(): dropped hallucinations must not claim a speaker number.
+            let transcript = MeetingTranscript.render(MeetingTranscript.assignSpeakers(
+                MeetingTranscript.process(utterances), turns: turns
+            ))
             let cfg = (try? await configStore.load()) ?? AppConfig()
 
             let (summary, failure) = await summarize(

@@ -30,3 +30,13 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## FluidAudio
+
+Source: https://github.com/FluidInference/FluidAudio (v0.17.7, Swift package)
+License: Apache-2.0
+
+Used for on-device speaker diarization of the meeting system track. Its Core ML
+models (pyannote segmentation + WeSpeaker embeddings) are downloaded at runtime
+from Hugging Face (FluidInference/speaker-diarization-coreml) under their own
+CC-BY-4.0 terms; they are not bundled in this repository.

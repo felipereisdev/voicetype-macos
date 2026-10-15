@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		A020000000000000000000A1 /* MeetingRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B020000000000000000000A1 /* MeetingRecorder.swift */; };
 		A020000000000000000000B1 /* MeetingProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B020000000000000000000B1 /* MeetingProcessor.swift */; };
+		A020000000000000000000B9 /* MeetingDiarizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B020000000000000000000B9 /* MeetingDiarizer.swift */; };
+		F1D0A0D10000000000000003 /* FluidAudio in Frameworks */ = {isa = PBXBuildFile; productRef = F1D0A0D10000000000000002 /* FluidAudio */; };
 		A020000000000000000000C1 /* MeetingDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B020000000000000000000C1 /* MeetingDetector.swift */; };
 		A020000000000000000000A2 /* SystemAudioCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = B020000000000000000000A2 /* SystemAudioCapture.swift */; };
 		A020000000000000000000A3 /* MicCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = B020000000000000000000A3 /* MicCapture.swift */; };
@@ -141,6 +143,7 @@
 /* Begin PBXFileReference section */
 		B020000000000000000000A1 /* MeetingRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingRecorder.swift; sourceTree = "<group>"; };
 		B020000000000000000000B1 /* MeetingProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingProcessor.swift; sourceTree = "<group>"; };
+		B020000000000000000000B9 /* MeetingDiarizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingDiarizer.swift; sourceTree = "<group>"; };
 		B020000000000000000000C1 /* MeetingDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingDetector.swift; sourceTree = "<group>"; };
 		B020000000000000000000A2 /* SystemAudioCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemAudioCapture.swift; sourceTree = "<group>"; };
 		B020000000000000000000A3 /* MicCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicCapture.swift; sourceTree = "<group>"; };
@@ -262,6 +265,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				DE3214E92FE415BF000EA50B /* WhisperKit in Frameworks */,
+				F1D0A0D10000000000000003 /* FluidAudio in Frameworks */,
 				A001000000000000000000A7 /* Core in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -289,6 +293,7 @@
 			children = (
 				B020000000000000000000A1 /* MeetingRecorder.swift */,
 				B020000000000000000000B1 /* MeetingProcessor.swift */,
+				B020000000000000000000B9 /* MeetingDiarizer.swift */,
 				B020000000000000000000C1 /* MeetingDetector.swift */,
 				B020000000000000000000A2 /* SystemAudioCapture.swift */,
 				B020000000000000000000A3 /* MicCapture.swift */,
@@ -680,6 +685,7 @@
 			packageProductDependencies = (
 				D001000000000000000000D1 /* Core */,
 				DE3214E82FE415BF000EA50B /* WhisperKit */,
+				F1D0A0D10000000000000002 /* FluidAudio */,
 			);
 			productName = VoiceType;
 			productReference = B001000000000000000000B9 /* VoiceType.app */;
@@ -758,6 +764,7 @@
 			packageReferences = (
 				M001000000000000000000M1 /* XCLocalSwiftPackageReference "VoiceTypeCore" */,
 				DE3214E72FE415BF000EA50B /* XCRemoteSwiftPackageReference "WhisperKit" */,
+				F1D0A0D10000000000000001 /* XCRemoteSwiftPackageReference "FluidAudio" */,
 			);
 			productRefGroup = H001000000000000000000H7 /* Products */;
 			projectDirPath = "";
@@ -849,6 +856,7 @@
 				A005000000000000000010F2 /* MenuBarContent.swift in Sources */,
 				A020000000000000000000A1 /* MeetingRecorder.swift in Sources */,
 				A020000000000000000000B1 /* MeetingProcessor.swift in Sources */,
+				A020000000000000000000B9 /* MeetingDiarizer.swift in Sources */,
 				A020000000000000000000C1 /* MeetingDetector.swift in Sources */,
 				A020000000000000000000A2 /* SystemAudioCapture.swift in Sources */,
 				A020000000000000000000A3 /* MicCapture.swift in Sources */,
@@ -1150,6 +1158,14 @@
 				minimumVersion = 1.0.0;
 			};
 		};
+		F1D0A0D10000000000000001 /* XCRemoteSwiftPackageReference "FluidAudio" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/FluidInference/FluidAudio";
+			requirement = {
+				kind = exactVersion;
+				version = 0.17.7;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -1165,6 +1181,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = DE3214E72FE415BF000EA50B /* XCRemoteSwiftPackageReference "WhisperKit" */;
 			productName = WhisperKit;
+		};
+		F1D0A0D10000000000000002 /* FluidAudio */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F1D0A0D10000000000000001 /* XCRemoteSwiftPackageReference "FluidAudio" */;
+			productName = FluidAudio;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

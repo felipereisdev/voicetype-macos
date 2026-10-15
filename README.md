@@ -22,6 +22,7 @@ Segure `Alt+N` e fale uma ideia. O texto vira uma nota com título e tags em `<p
 - **Detecção automática:** quando um app de reunião (Teams, Zoom, Meet/WebRTC no navegador…) abre o microfone, aparece um cartão no canto superior direito com contagem de 10 s: "Gravar" / "Agora não" (passar o mouse pausa a contagem). Modo configurável: perguntar, gravar automático ou desligado. Para sozinha quando a chamada termina.
 - Enquanto grava, o ícone da barra de menu ganha um ponto vermelho. Também dá para iniciar/parar manualmente pelo menu ("Gravar reunião").
 - Grava microfone + áudio do sistema, transcreve localmente (WhisperKit) e gera o resumo com o **Claude CLI** (`claude -p`, usa sua assinatura, não API paga).
+- Separa as vozes remotas localmente (FluidAudio, macOS 15+): no transcript e no resumo você é "Você" e os demais viram "Outro 1", "Outro 2"… (sem nomes). No macOS 14 ou com uma voz só, fica "Outros".
 - Saída em Markdown pronta para **Obsidian**:
   - `<pasta>/Meetings/AAAA/…md` — nota com resumo, decisões e tarefas (formato Dataview `[owner::] [due::]`), frontmatter com organização/cliente;
   - `<pasta>/Transcripts/AAAA/…md` — transcrição completa;

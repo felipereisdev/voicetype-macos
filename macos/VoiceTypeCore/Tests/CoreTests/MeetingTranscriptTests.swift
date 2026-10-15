@@ -106,6 +106,47 @@ struct MeetingMergeTests {
         #expect(out == "[00:00] Outros: Can everyone see my screen now? Great, let's go through the numbers.")
     }
 
+    @Test func diarizedSystemVoicesGetNumberedSpeakers() {
+        let turns = [MeetingSpeakerTurn(start: 0, end: 5, speaker: "S7"),
+                     MeetingSpeakerTurn(start: 5, end: 12, speaker: "S2"),
+                     MeetingSpeakerTurn(start: 12, end: 20, speaker: "S7")]
+        let utterances = MeetingTranscript.assignSpeakers([
+            u(.system, 0, 4, "Bom dia."),
+            u(.system, 4.5, 11, "Eu trago os números."),   // mostly inside S2
+            u(.mic, 11, 12, "Pode ir."),                  // mic is never diarized
+            u(.system, 13, 16, "Fechado então."),
+            u(.system, 21.5, 23, "Até mais."),           // no overlap, 1.5 s after S7
+            u(.system, 40, 41, "Alô?"),                  // nothing within 3 s
+        ], turns: turns)
+        #expect(utterances.map(\.speaker) == [1, 2, nil, 1, 1, nil])
+        #expect(MeetingTranscript.render(utterances) == """
+        [00:00] Outro 1: Bom dia.
+        [00:04] Outro 2: Eu trago os números.
+        [00:11] Você: Pode ir.
+        [00:13] Outro 1: Fechado então. Até mais.
+        [00:40] Outros: Alô?
+        """)
+    }
+
+    @Test func droppedHallucinationDoesNotClaimASpeaker() {
+        let turns = [MeetingSpeakerTurn(start: 0, end: 10, speaker: "S1"),
+                     MeetingSpeakerTurn(start: 10, end: 20, speaker: "S2")]
+        let kept = MeetingTranscript.process([
+            u(.system, 0, 9, "E aí"),          // S1, hallucination → dropped
+            u(.system, 11, 14, "Vamos lá."),   // S2
+        ])
+        #expect(MeetingTranscript.render(MeetingTranscript.assignSpeakers(kept, turns: turns)) == "[00:11] Outros: Vamos lá.")
+    }
+
+    @Test func singleRemoteSpeakerStaysOutros() {
+        let utterances = MeetingTranscript.assignSpeakers(
+            [u(.system, 0, 4, "Oi."), u(.system, 5, 8, "Tudo bem?")],
+            turns: [MeetingSpeakerTurn(start: 0, end: 10, speaker: "S1")]
+        )
+        #expect(utterances.allSatisfy { $0.speaker == nil })
+        #expect(MeetingTranscript.render(utterances) == "[00:00] Outros: Oi. Tudo bem?")
+    }
+
     @Test func minutesGoPastAnHour() {
         #expect(MeetingTranscript.render([u(.mic, 4512, 4514, "Tchau.")]) == "[75:12] Você: Tchau.")
     }
