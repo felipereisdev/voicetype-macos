@@ -6,6 +6,7 @@ struct VoiceTypeApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var deps: AppDependencies
     @State private var historyViewModel: HistoryViewModel
+    @State private var router = MainWindowRouter()
 
     init() {
         // Build the composition graph once and hand the same instance to the
@@ -27,6 +28,7 @@ struct VoiceTypeApp: App {
         MenuBarExtra {
             MenuBarContent()
                 .environment(deps)
+                .environment(router)
         } label: {
             // Red dot next to the icon while a meeting records — visible without opening the menu.
             if deps.meetingRecorder.isRecording {
@@ -42,17 +44,15 @@ struct VoiceTypeApp: App {
         // as a child of whatever's frontmost. A Window with its own id has its
         // own lifecycle and we toggle activation policy around its lifetime so
         // the Dock icon appears only while the window is visible.
-        Window("Configurações", id: "settings") {
-            SettingsScene()
+        Window("VoiceType", id: MainWindowRouter.windowID) {
+            MainWindowView(historyViewModel: historyViewModel)
                 .environment(deps)
+                .environment(router)
                 .onAppear { ActivationPolicyTracker.enter() }
                 .onDisappear { ActivationPolicyTracker.leave() }
         }
-        .windowResizability(.contentSize)
+        .windowResizability(.contentMinSize)
         .commandsRemoved()
-
-        HistoryWindow(viewModel: historyViewModel)
-            .environment(deps)
     }
 }
 

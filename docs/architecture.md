@@ -75,7 +75,7 @@ macos/
 | `Notifier` | `UNUserNotificationCenter` wrapper. Dedupe `(level + title + body)` 5 s window, GC entries > 64. Bootstrap em `applicationDidFinishLaunching` |
 | `LoginItem` | `SMAppService.mainApp` register/unregister. Facade com enum `.enabled / .notRegistered / .requiresApproval / .notFound` |
 | `PermissionsChecker` | `@Observable` actor. Status live de Mic, Accessibility, Notifications + deep-links `x-apple.systempreferences:…` |
-| `ActivationPolicyTracker` | Counter shared pra flips `.regular` ↔ `.accessory` enquanto Settings/History windows abertas (mantém Dock icon visível enquanto uma delas tiver aberta) |
+| `ActivationPolicyTracker` | Counter shared pra flips `.regular` ↔ `.accessory` enquanto a janela principal está aberta (mantém Dock icon visível enquanto uma delas tiver aberta) |
 
 ## Runtime flow
 
@@ -145,23 +145,16 @@ public actor Pipeline {
 
 Cada step tem seu `URLSession` com timeouts (connect 5 s, resource 60 s). Retries exponenciais, max 2, respeitam `Task.checkCancellation()` entre tentativas.
 
-## Settings sections
+## Janela principal
 
-SwiftUI scene `Window(id: "settings")` com sidebar:
+Uma única cena `Window("VoiceType", id: "main")` (`MainWindowView`): `NavigationSplitView` com **Histórico** no topo do sidebar e o grupo **Configurações** abaixo (uma linha por `SettingsSection`: Geral, Atalhos, Áudio, Transcrição local, Refino on-device, Estilo por app, Vocabulário, Aparência, Armazenamento, Reuniões, Inicialização, Sobre).
 
-1. **Geral** — Groq API key (secure field) + Testar chave + status.
-2. **Atalhos** — refine + translate shortcuts (custom `ShortcutRecorderField` via `NSEvent.addLocalMonitorForEvents`), translate enabled toggle, translate target picker.
-3. **Áudio** — input device picker (re-fresh via `AVAudioEngine` notifications), language picker, refine style picker.
-4. **Aparência** — picker para `AppConfig.waveformPreset` (enum `WaveformColorPreset`); a seleção é aplicada na próxima gravação.
-5. **Histórico** — toggle, retention cap (1-500), Abrir histórico…
-6. **Inicialização** — login item toggle, status rows (Mic/Accessibility/Notifications) com Open System Settings.
-7. **Sobre** — versão, build.
+`MainWindowRouter` (`@Observable`, criado em `VoiceTypeApp`, injetado via `.environment`) guarda a seleção. "Histórico…" / "Configurações…" do menu setam a seleção e chamam `openWindow(id: "main")`: janela já aberta troca de painel, janela nova nasce no destino.
+
+- **Histórico:** tabela com busca; ações por entrada Recolar (`LivePaster` captura `FocusedApp.snapshot()` no click), Copiar, Apagar; toolbar com Apagar tudo.
+- **Armazenamento:** liga/desliga histórico + retenção (1–500) + "Ver histórico" (só troca a seleção).
 
 Autosalva em ~400 ms debounce. Indicador `Salvando…` / `Salvo` no canto.
-
-## History
-
-`Window(id: "history")` scene. Entries agrupados por dia. Ações por entry: Recolar (`LivePaster` captura `FocusedApp.snapshot()` no click), Copiar, Apagar. Header: search + Apagar tudo.
 
 ## Build + distribuição
 

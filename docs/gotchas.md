@@ -154,18 +154,18 @@ let tap = CGEvent.tapCreate(
 
 **Causa raiz:** macOS 14+ removeu `showSettingsWindow:` selector (loga `Please use SettingsLink for opening the Settings scene` e silenciosamente no-op). Mesmo via `SettingsLink`, scene `Settings { }` em `LSUIElement: YES` app não tem own window ownership.
 
-**Fix:** trocar `Settings { … }` por `Window("Configurações", id: "settings") { … }`. Abrir via:
+**Fix:** trocar `Settings { … }` por `Window("VoiceType", id: "main") { … }`. Abrir via:
 
 ```swift
 @Environment(\.openWindow) private var openWindow
 …
 Button("Configurações…") {
     NSApp.activate(ignoringOtherApps: true)
-    openWindow(id: "settings")
+    openWindow(id: "main")
 }
 ```
 
-`.onAppear` flipa `NSApp.setActivationPolicy(.regular)`, `.onDisappear` `.accessory`. Quando duas windows abertas (Settings + History), usar `ActivationPolicyTracker` (counter) pra não flipar prematuro.
+`.onAppear` flipa `NSApp.setActivationPolicy(.regular)`, `.onDisappear` `.accessory`. `ActivationPolicyTracker` (counter) centraliza o flip; hoje há uma janela só (Histórico + Configurações).
 
 **Commit referência:** `2e93993`. Doc canônico: ADR-002.
 

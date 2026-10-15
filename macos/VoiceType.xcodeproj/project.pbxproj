@@ -18,7 +18,7 @@
 		A001000000000000000000A5 /* AppDelegateSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B001000000000000000000B5 /* AppDelegateSmokeTests.swift */; };
 		A001000000000000000000A6 /* LaunchUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B001000000000000000000B6 /* LaunchUITests.swift */; };
 		A001000000000000000000A7 /* Core in Frameworks */ = {isa = PBXBuildFile; productRef = D001000000000000000000D1 /* Core */; };
-		A001000000000000000000AA /* SettingsScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = B001000000000000000000BF /* SettingsScene.swift */; };
+		A001000000000000000000AA /* MainWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B001000000000000000000BF /* MainWindowView.swift */; };
 		A001000000000000000000AE /* Core in Frameworks */ = {isa = PBXBuildFile; productRef = D001000000000000000000D2 /* Core */; };
 		A001000000000000000000C1 /* recording_start.wav in Resources */ = {isa = PBXBuildFile; fileRef = B001000000000000000000C1 /* recording_start.wav */; };
 		A002000000000000000000A1 /* WavEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002000000000000000000A1 /* WavEncoder.swift */; };
@@ -91,7 +91,6 @@
 		A007000000000000000000A3 /* AppIconResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B007000000000000000000B3 /* AppIconResolver.swift */; };
 		A007000000000000000000A4 /* HistoryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B007000000000000000000B4 /* HistoryViewModel.swift */; };
 		A007000000000000000000A5 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B007000000000000000000B5 /* HistoryView.swift */; };
-		A007000000000000000000A6 /* HistoryWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B007000000000000000000B6 /* HistoryWindow.swift */; };
 		A007000000000000000000A7 /* HistoryViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B007000000000000000000B7 /* HistoryViewModelTests.swift */; };
 		A008000000000000000000A1 /* Notifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = B008000000000000000000B1 /* Notifier.swift */; };
 		A008000000000000000000A2 /* NotificationCopy.swift in Sources */ = {isa = PBXBuildFile; fileRef = B008000000000000000000B2 /* NotificationCopy.swift */; };
@@ -156,7 +155,7 @@
 		B001000000000000000000BA /* VoiceTypeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VoiceTypeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B001000000000000000000BB /* VoiceTypeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VoiceTypeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B001000000000000000000BC /* VoiceTypeCore */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = VoiceTypeCore; sourceTree = "<group>"; };
-		B001000000000000000000BF /* SettingsScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsScene.swift; sourceTree = "<group>"; };
+		B001000000000000000000BF /* MainWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowView.swift; sourceTree = "<group>"; };
 		B001000000000000000000C1 /* recording_start.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = recording_start.wav; sourceTree = "<group>"; };
 		B002000000000000000000A1 /* WavEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WavEncoder.swift; sourceTree = "<group>"; };
 		B002000000000000000000A2 /* AudioDeviceResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioDeviceResolver.swift; sourceTree = "<group>"; };
@@ -228,7 +227,6 @@
 		B007000000000000000000B3 /* AppIconResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIconResolver.swift; sourceTree = "<group>"; };
 		B007000000000000000000B4 /* HistoryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViewModel.swift; sourceTree = "<group>"; };
 		B007000000000000000000B5 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
-		B007000000000000000000B6 /* HistoryWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryWindow.swift; sourceTree = "<group>"; };
 		B007000000000000000000B7 /* HistoryViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViewModelTests.swift; sourceTree = "<group>"; };
 		B008000000000000000000B1 /* Notifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notifier.swift; sourceTree = "<group>"; };
 		B008000000000000000000B2 /* NotificationCopy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCopy.swift; sourceTree = "<group>"; };
@@ -415,7 +413,7 @@
 		H001000000000000000000HB /* Settings */ = {
 			isa = PBXGroup;
 			children = (
-				B001000000000000000000BF /* SettingsScene.swift */,
+				B001000000000000000000BF /* MainWindowView.swift */,
 				B00500000000000000000003 /* SettingsStrings.swift */,
 				B00500000000000000000005 /* SettingsSection.swift */,
 				B00500000000000000000007 /* GeneralSection.swift */,
@@ -538,7 +536,6 @@
 				B007000000000000000000B3 /* AppIconResolver.swift */,
 				B007000000000000000000B4 /* HistoryViewModel.swift */,
 				B007000000000000000000B5 /* HistoryView.swift */,
-				B007000000000000000000B6 /* HistoryWindow.swift */,
 			);
 			path = History;
 			sourceTree = "<group>";
@@ -797,7 +794,7 @@
 				A00C000000000000000000A1 /* AppDependencies.swift in Sources */,
 				A00D000000000000000000A1 /* ConfigStoreSnapshot.swift in Sources */,
 				A00E000000000000000000A1 /* HistoryStoreSnapshot.swift in Sources */,
-				A001000000000000000000AA /* SettingsScene.swift in Sources */,
+				A001000000000000000000AA /* MainWindowView.swift in Sources */,
 				A002000000000000000000A1 /* WavEncoder.swift in Sources */,
 				A002000000000000000000A2 /* AudioDeviceResolver.swift in Sources */,
 				A002000000000000000000A3 /* AudioRecorderError.swift in Sources */,
@@ -860,7 +857,6 @@
 				A007000000000000000000A3 /* AppIconResolver.swift in Sources */,
 				A007000000000000000000A4 /* HistoryViewModel.swift in Sources */,
 				A007000000000000000000A5 /* HistoryView.swift in Sources */,
-				A007000000000000000000A6 /* HistoryWindow.swift in Sources */,
 				A00F000000000000000000A1 /* AudioCaptureAdapter.swift in Sources */,
 				A00F000000000000000000A2 /* StateMachineAdapter.swift in Sources */,
 				A00F000000000000000000A3 /* PasterDeliveryAdapter.swift in Sources */,

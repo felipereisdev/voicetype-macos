@@ -5,7 +5,7 @@ import Foundation
 enum HistoryStrings {
     static let title = "Histórico"
     static let searchPlaceholder = "Buscar transcrições"
-    static let clearAll = "Limpar tudo"
+    static let clearAll = "Apagar tudo"
     static let clearAllConfirmTitle = "Apagar todo o histórico?"
     static let clearAllConfirmMessage = "Esta ação não pode ser desfeita."
     static let clearAllConfirmOK = "Apagar tudo"

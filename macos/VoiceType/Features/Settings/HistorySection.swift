@@ -3,7 +3,7 @@ import Core
 
 struct HistorySection: View {
     let snapshot: ConfigStoreSnapshot
-    @Environment(\.openWindow) private var openWindow
+    @Environment(MainWindowRouter.self) private var router
 
     init(snapshot: ConfigStoreSnapshot) {
         self.snapshot = snapshot
@@ -36,13 +36,10 @@ struct HistorySection: View {
             }
 
             Section {
+                // Old entries stay viewable/deletable even with capture off.
                 Button(SettingsStrings.openHistoryButton) {
-                    openWindow(id: HistoryWindow.identifier)
-                    DispatchQueue.main.async {
-                        NSApp.activate(ignoringOtherApps: true)
-                    }
+                    router.selection = .history
                 }
-                .disabled(!snapshot.config.history.enabled)
             }
         }
         .formStyle(.grouped)

@@ -24,9 +24,9 @@ Decisões principais do native macOS build. Cada ADR registra contexto, escolha,
 
 ## ADR-002 — `MenuBarExtra` + `Window(id:)` ao invés de `Settings { }` scene
 
-**Contexto:** App é `LSUIElement` (sem dock). Precisa abrir Settings/History do menu bar.
+**Contexto:** App é `LSUIElement` (sem dock). Precisa abrir a janela principal (Histórico + Configurações) do menu bar.
 
-**Decisão:** `MenuBarExtra` (não `NSStatusItem` custom) + cenas `Window("…", id: "…")`. Use `@Environment(\.openWindow)` pra abrir. `ActivationPolicyTracker` flipa `.accessory ↔ .regular` enquanto janelas abertas.
+**Decisão:** `MenuBarExtra` (não `NSStatusItem` custom) + uma cena `Window("VoiceType", id: "main")` (Histórico e Configurações no mesmo sidebar desde 2026-10-15; antes eram duas janelas). Use `@Environment(\.openWindow)` pra abrir. `ActivationPolicyTracker` flipa `.accessory ↔ .regular` enquanto janelas abertas.
 
 **Por quê:** macOS 14+ removeu `showSettingsWindow:` (loga `Please use SettingsLink for opening the Settings scene` e silenciosamente no-op). Pior: mesmo quando `Settings { }` scene abre via `SettingsLink`, ela parasita ownership do app focado em frontmost e fecha junto.
 

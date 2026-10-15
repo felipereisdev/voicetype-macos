@@ -13,7 +13,7 @@ final class SettingsSceneUITests: XCTestCase {
         let window = app.windows.firstMatch
         XCTAssertTrue(window.waitForExistence(timeout: 5))
 
-        for label in ["Geral", "Atalhos", "Áudio", "Histórico", "Inicialização", "Sobre"] {
+        for label in ["Histórico", "Geral", "Atalhos", "Áudio", "Armazenamento", "Inicialização", "Sobre"] {
             let item = window.staticTexts[label].firstMatch
             XCTAssertTrue(item.waitForExistence(timeout: 3), "Sidebar item missing: \(label)")
         }

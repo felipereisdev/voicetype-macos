@@ -19,7 +19,6 @@ struct HistoryView: View {
                 table
             }
         }
-        .frame(minWidth: 720, minHeight: 420)
         .navigationTitle(HistoryStrings.title)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {

@@ -6,7 +6,7 @@ import Foundation
 /// plus the new strings introduced in Phase 6 (sidebar, refine style,
 /// translate target, audio device picker, permission rows, About).
 enum SettingsStrings {
-    static let header = "Settings"
+    static let header = "Configurações"
 
     // Sidebar
     static let sidebarGeneral = "Geral"
@@ -14,7 +14,7 @@ enum SettingsStrings {
     static let sidebarAudio = "Áudio"
     static let sidebarVocabulary = "Vocabulário"
     static let sidebarAppearance = "Aparência"
-    static let sidebarHistory = "Histórico"
+    static let sidebarHistory = "Armazenamento"
     static let sidebarStartup = "Inicialização"
     static let sidebarAbout = "Sobre"
 
@@ -110,7 +110,7 @@ enum SettingsStrings {
     // History
     static let keepHistoryLabel = "Manter histórico"
     static let historyRetentionLabel = "Quantidade máxima de entradas"
-    static let openHistoryButton = "Abrir janela de histórico"
+    static let openHistoryButton = "Ver histórico"
 
     // Meetings
     static let sidebarMeetings = "Reuniões"
