@@ -2,7 +2,7 @@ import Foundation
 
 // A finished meeting, ready to be written as Markdown into a notes folder
 // (an Obsidian vault in practice, but any folder works — plain files, no API).
-public struct MeetingNote: Sendable, Equatable {
+public struct MeetingNote: Codable, Sendable, Equatable {
     /// Stable identity. Written to the frontmatter and used by the writer to
     /// make re-saves idempotent (retry after a partial failure overwrites the
     /// same file instead of creating "(2)").

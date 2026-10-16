@@ -21,3 +21,39 @@ public enum OKVault {
         return exists && isDirectory.boolValue
     }
 }
+
+/// Which vault a proposal, an approval or a journal belongs to: the canonical
+/// root path plus the root's device and inode. Nothing is written inside the
+/// vault to identify it, so a vault deleted and recreated in the same place
+/// (new inode) or another `.ok/` folder never matches.
+public struct OKVaultIdentity: Codable, Equatable, Sendable {
+    /// Standardized, symlinks resolved.
+    public var root: String
+    public var device: UInt64
+    public var inode: UInt64
+
+    public init(root: String, device: UInt64, inode: UInt64) {
+        self.root = root
+        self.device = device
+        self.inode = inode
+    }
+
+    /// Throws when `vault` isn't an OpenKnowledge project root (no `.ok/`)
+    /// or can't be `stat`ed.
+    public static func of(_ vault: URL) throws -> OKVaultIdentity {
+        let root = vault.standardizedFileURL.resolvingSymlinksInPath().path
+        guard OKVault.isProjectRoot(URL(fileURLWithPath: root, isDirectory: true)) else {
+            throw CocoaError(.fileNoSuchFile, userInfo: [NSFilePathErrorKey: vault.path])
+        }
+        var info = stat()
+        guard stat(root, &info) == 0 else {
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+        return OKVaultIdentity(root: root, device: UInt64(bitPattern: Int64(info.st_dev)), inode: UInt64(info.st_ino))
+    }
+
+    /// Same canonical path and same device + inode.
+    public func matches(_ vault: URL) -> Bool {
+        (try? Self.of(vault)) == self
+    }
+}
