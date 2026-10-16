@@ -45,6 +45,35 @@ struct OKFrontmatterTests {
         #expect(OKFrontmatter.containsTODO("---\nproject: TODO\n---\nok\n") && !OKFrontmatter.containsTODO("---\nproject: p\n---\nTODO no corpo\n"))
     }
 
+    @Test func duplicatedKeysAreAmbiguousAndSettingCollapsesThem() {
+        // Model output with `project`, `type` and `status` repeated (one with a block continuation).
+        let md = "---\ntitle: A\nproject: outro\ntype: decisao\ndescription: B\nproject: outro\nstatus: proposta\ntype:\n  - gotcha\nstatus: aceita\nproject: terceiro\n---\nCorpo\n"
+        #expect(OKFrontmatter.duplicateKeys(md) == ["project", "type", "status"])
+        #expect(OKFrontmatter.scalar("project", in: md) == nil)
+        #expect(OKFrontmatter.scalar("type", in: md) == nil)
+        #expect(OKFrontmatter.scalar("status", in: md) == nil)
+        #expect(OKFrontmatter.scalar("title", in: md) == "A")
+
+        var out = md
+        for (key, value) in [("type", "decisao"), ("project", "p5"), ("status", "aceita")] {
+            out = OKFrontmatter.setting(key, to: value, in: out)
+        }
+        #expect(out == "---\ntitle: A\nproject: p5\ntype: decisao\ndescription: B\nstatus: aceita\n---\nCorpo\n")
+        #expect(OKFrontmatter.duplicateKeys(out) == [])
+        #expect(OKFrontmatter.scalar("project", in: out) == "p5")
+        #expect(OKFrontmatter.scalar("type", in: out) == "decisao")
+        #expect(OKFrontmatter.scalar("status", in: out) == "aceita")
+    }
+
+    @Test func removingDropsEveryOccurrenceAndDuplicatesIgnoreNestedKeys() {
+        #expect(OKFrontmatter.removing("template", in: "---\ntemplate:\n  title: T\ntitle: x\ntemplate: y\n---\nb\n") == "---\ntitle: x\n---\nb\n")
+        // Nested keys, list items, comments and the body don't count as duplicates.
+        let md = "---\ntemplate:\n  title: T\ntitle: x\ntags:\n  - a\n  - a\n# title: c\n---\ntitle: corpo\n"
+        #expect(OKFrontmatter.duplicateKeys(md) == [])
+        #expect(OKFrontmatter.duplicateKeys("---\ntags: [a]\ntags: [b]\n---\n") == ["tags"])
+        #expect(OKFrontmatter.duplicateKeys("sem frontmatter\n") == [])
+    }
+
     @Test func settingCreatesFrontmatterAndRemovingIsNoOpWithoutKey() {
         #expect(OKFrontmatter.setting("title", to: "x", in: "# b\n") == "---\ntitle: x\n---\n# b\n")
         #expect(OKFrontmatter.setting("title", to: "x", in: "---\n---\nb\n") == "---\ntitle: x\n---\nb\n")

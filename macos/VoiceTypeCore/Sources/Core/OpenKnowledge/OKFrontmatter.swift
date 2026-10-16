@@ -16,9 +16,12 @@ public enum OKFrontmatter {
     /// A top-level scalar, unquoted (`''` → `'` in single quotes, `\"` and
     /// `\\` in double quotes). Indented lines after it that don't start with
     /// `- ` are folded in with one space. An empty value followed by an
-    /// indented block (a map or a list) → `nil`.
+    /// indented block (a map or a list) → `nil`, and so does a key that
+    /// appears more than once (ambiguous; see `duplicateKeys`).
     public static func scalar(_ key: String, in md: String) -> String? {
-        guard let lines = fences(md)?.lines, let range = keyRange(key, in: lines) else { return nil }
+        guard let lines = fences(md)?.lines else { return nil }
+        let ranges = keyRanges(key, in: lines)
+        guard ranges.count == 1, let range = ranges.first else { return nil }
         var value = String(lines[range.lowerBound].dropFirst(key.count + 1)).trimmingCharacters(in: .whitespaces)
         for line in lines[(range.lowerBound + 1)..<range.upperBound] {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -33,24 +36,45 @@ public enum OKFrontmatter {
     }
 
     /// Replaces `key` (with its indented continuation lines) by `key: yamlValue`
-    /// in place; a missing key goes right before the closing fence, and a
-    /// document without frontmatter gets one. `yamlValue` is written as is.
+    /// where it first appears and drops any repeated occurrence, so the result
+    /// holds the key exactly once. A missing key goes right before the closing
+    /// fence, and a document without frontmatter gets one. `yamlValue` is
+    /// written as is.
     public static func setting(_ key: String, to yamlValue: String, in md: String) -> String {
         let entry = "\(key): \(yamlValue)"
         guard var parts = fences(md) else { return "---\n\(entry)\n---\n" + md }
-        if let range = keyRange(key, in: parts.lines) {
-            parts.lines.replaceSubrange(range, with: [entry])
+        let ranges = keyRanges(key, in: parts.lines)
+        if let first = ranges.first {
+            for range in ranges.dropFirst().reversed() { parts.lines.removeSubrange(range) }
+            parts.lines.replaceSubrange(first, with: [entry])
         } else {
             parts.lines.append(entry)
         }
         return join(parts.lines, parts.closing, parts.body)
     }
 
-    /// Drops `key` and its indented continuation lines; no key → `md` unchanged.
+    /// Drops every occurrence of `key` with its indented continuation lines;
+    /// no key → `md` unchanged.
     public static func removing(_ key: String, in md: String) -> String {
-        guard var parts = fences(md), let range = keyRange(key, in: parts.lines) else { return md }
-        parts.lines.removeSubrange(range)
+        guard var parts = fences(md) else { return md }
+        let ranges = keyRanges(key, in: parts.lines)
+        guard !ranges.isEmpty else { return md }
+        for range in ranges.reversed() { parts.lines.removeSubrange(range) }
         return join(parts.lines, parts.closing, parts.body)
+    }
+
+    /// Top-level keys that appear more than once, in order of first
+    /// appearance. A strict YAML parser rejects such a frontmatter, so
+    /// untrusted Markdown with any duplicate left after `setting` is refused.
+    public static func duplicateKeys(_ md: String) -> [String] {
+        guard let lines = fences(md)?.lines else { return [] }
+        var seen: Set<String> = []
+        var duplicates: [String] = []
+        for line in lines {
+            guard let key = topLevelKey(line) else { continue }
+            if !seen.insert(key).inserted, !duplicates.contains(key) { duplicates.append(key) }
+        }
+        return duplicates
     }
 
     /// True when the frontmatter (never the body) still holds a template `TODO`.
@@ -88,12 +112,27 @@ public enum OKFrontmatter {
         "---\n" + lines.map { $0 + "\n" }.joined() + closing + body
     }
 
-    /// The key line plus the indented (or `- ` list) lines that belong to it.
-    private static func keyRange(_ key: String, in lines: [String]) -> Range<Int>? {
-        guard let start = lines.firstIndex(where: { $0.hasPrefix(key + ":") }) else { return nil }
-        var end = start + 1
-        while end < lines.count, belongsToPrevious(lines[end]) { end += 1 }
-        return start..<end
+    /// Each occurrence of the key line plus the indented (or `- ` list) lines
+    /// that belong to it, in ascending order.
+    private static func keyRanges(_ key: String, in lines: [String]) -> [Range<Int>] {
+        var ranges: [Range<Int>] = []
+        var start = 0
+        while start < lines.count {
+            guard lines[start].hasPrefix(key + ":") else { start += 1; continue }
+            var end = start + 1
+            while end < lines.count, belongsToPrevious(lines[end]) { end += 1 }
+            ranges.append(start..<end)
+            start = end
+        }
+        return ranges
+    }
+
+    /// `key` of a top-level `key: …` line; indented, list, comment and blank
+    /// lines have none.
+    private static func topLevelKey(_ line: String) -> String? {
+        guard let first = line.first, !first.isWhitespace, first != "-", first != "#",
+              let colon = line.firstIndex(of: ":") else { return nil }
+        return String(line[..<colon])
     }
 
     private static func belongsToPrevious(_ line: String) -> Bool {
