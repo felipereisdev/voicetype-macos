@@ -1,0 +1,395 @@
+import Core
+import XCTest
+@testable import VoiceType
+
+private let gotchaPath = "p5/gotchas/g.md"
+private let decisionPath = "p5/decisoes/usar-fila.md"
+
+private func put(_ text: String, _ relPath: String, in root: URL) throws {
+    let url = root.appendingPathComponent(relPath)
+    try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data(text.utf8).write(to: url)
+}
+
+private func text(_ relPath: String, in root: URL) -> String? {
+    (try? Data(contentsOf: root.appendingPathComponent(relPath))).map { String(decoding: $0, as: UTF8.self) }
+}
+
+/// The meeting record's op (`p5/reunioes/<date>-<slug>.md`).
+private func recordIndex(_ ops: [OKVaultOp]) -> Int {
+    ops.firstIndex { $0.path.hasPrefix("p5/reunioes/") && !$0.path.contains("/transcricoes/") && $0.path.hasSuffix(".md") }!
+}
+
+/// Every meeting here is committed for real by `OKVaultWriter` and killed at
+/// a fault point (`OKSimulatedCrash`), so `bootstrap()` sees the same disk a
+/// crash would leave.
+@MainActor
+final class PendingApprovalsTests: XCTestCase {
+    private struct Boom: Error {}
+
+    private let utc = TimeZone(identifier: "UTC")!
+    // 2026-10-16 14:30:00 UTC
+    private let date = Date(timeIntervalSince1970: 1_792_161_000)
+    private let fm = FileManager.default
+    private var cleanup: [URL] = []
+    private var notices: [(title: String, body: String)] = []
+
+    // MARK: - Fixtures
+
+    private func removeTemps() {
+        for url in cleanup { try? fm.removeItem(at: url) }
+        cleanup = []
+    }
+
+    private func makeTemp() throws -> URL {
+        let url = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try fm.createDirectory(at: url, withIntermediateDirectories: true)
+        cleanup.append(url)
+        return url
+    }
+
+    private func makeVault() throws -> URL {
+        let vault = try makeTemp()
+        try fm.createDirectory(at: vault.appendingPathComponent(".ok"), withIntermediateDirectories: true)
+        try put("---\ntitle: p5\ndescription: Projeto p5.\ntype: indice\nproject: p5\n---\n# p5\n", "p5/index.md", in: vault)
+        try put("old gotcha\n", gotchaPath, in: vault)
+        return vault
+    }
+
+    /// Files outside the vault's own `.ok/`, by vault-relative path.
+    private func snapshot(_ vault: URL) -> [String: String] {
+        var files: [String: String] = [:]
+        let root = vault.resolvingSymlinksInPath().path
+        let walker = fm.enumerator(at: vault, includingPropertiesForKeys: [.isRegularFileKey])
+        while let url = walker?.nextObject() as? URL {
+            if url.resolvingSymlinksInPath().path == root + "/.ok" { walker?.skipDescendants(); continue }
+            guard (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { continue }
+            let path = String(url.resolvingSymlinksInPath().path.dropFirst(root.count + 1))
+            files[path] = text(path, in: vault)
+        }
+        return files
+    }
+
+    /// Relative `.md` links (outside `.ok/`) whose target doesn't exist.
+    private func brokenLinks(_ vault: URL) -> [String] {
+        let link = try! NSRegularExpression(pattern: #"\]\(([^)\s]+\.md)\)"#)
+        return snapshot(vault).sorted { $0.key < $1.key }.flatMap { path, content -> [String] in
+            let dir = (path as NSString).deletingLastPathComponent
+            return link.matches(in: content, range: NSRange(content.startIndex..., in: content)).compactMap { match in
+                let target = String(content[Range(match.range(at: 1), in: content)!])
+                guard !target.contains("://") else { return nil }
+                let resolved = ((dir as NSString).appendingPathComponent(target) as NSString).standardizingPath
+                return fm.fileExists(atPath: vault.appendingPathComponent(resolved).path) ? nil : "\(path) → \(target)"
+            }
+        }
+    }
+
+    private func pending(_ base: URL) -> PendingApprovals {
+        PendingApprovals(base: base) { [unowned self] title, body in notices.append((title, body)) }
+    }
+
+    private func state(_ dir: URL) throws -> MeetingPipelineState {
+        try JSONDecoder().decode(MeetingPipelineState.self, from: Data(contentsOf: dir.appendingPathComponent(MeetingPipelineState.stateFileName)))
+    }
+
+    private func hasProposal(_ dir: URL) -> Bool {
+        fm.fileExists(atPath: dir.appendingPathComponent(MeetingProposal.fileName).path)
+    }
+
+    /// A meeting directory under `base` with its proposal and `pipeline.json`
+    /// (as the processor leaves them): a new decision and an update of the gotcha.
+    private func seedMeeting(_ name: String, title: String = "Sprint review", base: URL, vault: URL?) throws -> (dir: URL, proposal: MeetingProposal) {
+        let dir = base.appendingPathComponent(name, isDirectory: true)
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        let meetingID = UUID()
+        let note = MeetingNote(startedAt: date, duration: 1800, summary: MeetingSummary(title: title, summary: "Revisamos."),
+                               transcript: "Você: oi")
+        let paths = OKMeetingPaths.make(project: "p5", startedAt: date, title: title, timeZone: utc)
+        let p = MeetingProposal(
+            meetingID: meetingID, note: note, vault: try vault.map(OKVaultIdentity.of), suggestedProject: "p5", project: "p5", paths: paths,
+            items: [
+                OKProposedItem(action: .new, type: .decisao, path: decisionPath, title: "Usar fila",
+                               markdown: "---\ntitle: Usar fila\n---\n# Usar fila\n\n## Fontes\n\n- [\(title)](\(OKPath.relativeLink(from: decisionPath, to: paths.record)))\n"),
+                OKProposedItem(action: .update, type: .gotcha, path: gotchaPath, title: "G", markdown: "# G novo\n",
+                               baseHash: OKPath.contentHash(Data("old gotcha\n".utf8)), baseContent: "old gotcha\n"),
+            ]
+        )
+        let outcome = try MeetingProposalStore.replaceFromReprocessing(p, in: dir, builtFrom: MeetingPipelineState(noteID: meetingID)) {
+            $0.okProcessed = true
+            $0.summarized = true
+        }
+        XCTAssertEqual(outcome, .replaced)
+        return (dir, p)
+    }
+
+    private struct Commit {
+        var dir: URL
+        var proposal: MeetingProposal
+        var ops: [OKVaultOp]
+        func index(_ path: String) -> Int { ops.firstIndex { $0.path == path }! }
+    }
+
+    /// Everything approved, ops built by the session; `fault` sees the ops to
+    /// pick indices. The commit must die (`OKSimulatedCrash`) or end with
+    /// `WriteError.incomplete`, leaving the journal.
+    private func interruptedCommit(
+        base: URL, vault: URL, fault: @escaping @Sendable ([OKVaultOp], OKFaultPoint) throws -> Void
+    ) throws -> Commit {
+        let (dir, p) = try seedMeeting("2026-10-16_143000", base: base, vault: vault)
+        var session = OKApprovalSession(proposal: p, progress: nil, timeZone: utc)
+        for _ in 0..<4 { session.approve() }
+        XCTAssertTrue(session.canCommit)
+        try session.progress.save(in: dir)
+
+        let identity = try OKVaultIdentity.of(vault)
+        let ops = try session.commitOps(vault: vault, now: date)
+        var writer = OKVaultWriter(vault: vault, identity: identity,
+                                   journalDirectory: dir.appendingPathComponent(MeetingProposalStore.journalFolder))
+        writer.fault = { try fault(ops, $0) }
+        do {
+            let result = try writer.commit(ops, dependencies: session.commitDependencies(),
+                                           receipt: session.receiptDraft(vault: identity), precondition: { true })
+            XCTFail("o commit deveria ter morrido, veio \(result)")
+        } catch is OKSimulatedCrash {
+        } catch OKVaultWriter.WriteError.incomplete {}
+        XCTAssertTrue(MeetingProposalStore.hasJournal(dir))
+        return Commit(dir: dir, proposal: p, ops: ops)
+    }
+
+    // MARK: - Tests
+
+    func testDiscardRemovesProposalAndRefreshes() throws {
+        defer { removeTemps() }
+        let base = try makeTemp()
+        let a = try seedMeeting("2026-10-15_090000", title: "Daily", base: base, vault: nil)
+        let b = try seedMeeting("2026-10-16_090000", title: "Review", base: base, vault: nil)
+        let pending = pending(base)
+        XCTAssertTrue(pending.items.isEmpty)
+
+        pending.refresh()
+        XCTAssertEqual(pending.items.count, 2)
+
+        let discarded = pending.items[0]
+        pending.discard(discarded)
+        XCTAssertEqual(pending.items.count, 1)
+        XCTAssertNotEqual(pending.items[0].id, discarded.id)
+        XCTAssertFalse(hasProposal(discarded.directory))
+        XCTAssertTrue(hasProposal([a.dir, b.dir].first { $0.lastPathComponent != discarded.id }!))
+        // The meeting itself stays on the Mac.
+        XCTAssertTrue(fm.fileExists(atPath: discarded.directory.appendingPathComponent(MeetingPipelineState.stateFileName).path))
+    }
+
+    func testBootstrapRollsBackInterruptedCommit() throws {
+        defer { removeTemps() }
+        let base = try makeTemp()
+        let vault = try makeVault()
+        let original = snapshot(vault)
+        let c = try interruptedCommit(base: base, vault: vault) { _, point in
+            if point == .afterApply(0) { throw OKSimulatedCrash() }
+        }
+        XCTAssertNotEqual(snapshot(vault), original)
+
+        let pending = pending(base)
+        pending.bootstrap()
+
+        XCTAssertEqual(snapshot(vault), original)
+        XCTAssertFalse(MeetingProposalStore.hasJournal(c.dir))
+        XCTAssertEqual(MeetingProposalStore.load(c.dir), c.proposal)
+        XCTAssertEqual(OKApprovalProgress.load(c.dir)?.generation, c.proposal.generation)
+        XCTAssertEqual(pending.items.map(\.id), [c.dir.lastPathComponent])
+        XCTAssertNil(try state(c.dir).okRecordPath)
+        XCTAssertTrue(notices.isEmpty, "\(notices)")
+    }
+
+    func testBootstrapFinalizesCommittedJournal() throws {
+        defer { removeTemps() }
+        let base = try makeTemp()
+        let vault = try makeVault()
+        let c = try interruptedCommit(base: base, vault: vault) { _, point in
+            if point == .afterReceipt { throw OKSimulatedCrash() }
+        }
+        let paths = try XCTUnwrap(c.proposal.paths)
+
+        let pending = pending(base)
+        pending.bootstrap()
+
+        let s = try state(c.dir)
+        XCTAssertEqual(s.okRecordPath, paths.record)
+        XCTAssertEqual(s.okTranscriptPath, paths.transcript)
+        XCTAssertEqual(s.okVault, try OKVaultIdentity.of(vault))
+        XCTAssertEqual(s.okProject, "p5")
+        XCTAssertFalse(hasProposal(c.dir))
+        XCTAssertNil(OKApprovalProgress.load(c.dir))
+        XCTAssertFalse(MeetingProposalStore.hasJournal(c.dir))
+        XCTAssertTrue(pending.items.isEmpty)
+        XCTAssertNotNil(text(paths.record, in: vault))
+        XCTAssertEqual(text(gotchaPath, in: vault), "# G novo\n")
+        XCTAssertEqual(brokenLinks(vault), [])
+        XCTAssertTrue(notices.isEmpty, "\(notices)")
+    }
+
+    func testBootstrapCompletesInterruptedCompletionAndReviewsConflicts() throws {
+        defer { removeTemps() }
+        // 1. Record edited from outside after it was applied, crash before the
+        //    next op and again inside the completion → the completion finishes.
+        do {
+            let base = try makeTemp()
+            let vault = try makeVault()
+            let records = Box<String?>(nil)
+            let c = try interruptedCommit(base: base, vault: vault) { ops, point in
+                let record = recordIndex(ops)
+                switch point {
+                case .afterApply(record):
+                    let edited = (text(ops[record].path, in: vault) ?? "") + "\nEditado no OpenKnowledge.\n"
+                    records.value = edited
+                    try put(edited, ops[record].path, in: vault)
+                case .beforeApply(record + 1): throw OKSimulatedCrash()
+                default: break
+                }
+            }
+            let paths = try XCTUnwrap(c.proposal.paths)
+            let decision = c.index(decisionPath)
+            XCTAssertThrowsError(try OKVaultWriter.recover(
+                journalDirectory: c.dir.appendingPathComponent(MeetingProposalStore.journalFolder),
+                fault: { if $0 == .forwardBeforeApply(decision) { throw OKSimulatedCrash() } }
+            ))
+            XCTAssertTrue(MeetingProposalStore.hasJournal(c.dir))
+
+            let pending = pending(base)
+            pending.bootstrap()
+
+            XCTAssertEqual(text(paths.record, in: vault), records.value)
+            XCTAssertNotNil(text(paths.transcript, in: vault))
+            XCTAssertNotNil(text(decisionPath, in: vault))
+            XCTAssertEqual(text(gotchaPath, in: vault), "# G novo\n")
+            XCTAssertEqual(brokenLinks(vault), [])
+            XCTAssertEqual(try state(c.dir).okRecordPath, paths.record)
+            XCTAssertFalse(hasProposal(c.dir))
+            XCTAssertFalse(MeetingProposalStore.hasJournal(c.dir))
+            XCTAssertTrue(pending.items.isEmpty)
+            XCTAssertTrue(notices.isEmpty, "\(notices)")
+        }
+
+        // 2. Same, with the gotcha changed from outside before its turn → only
+        //    that item goes back to review, and the user is told.
+        notices = []
+        do {
+            let base = try makeTemp()
+            let vault = try makeVault()
+            let c = try interruptedCommit(base: base, vault: vault) { ops, point in
+                let record = recordIndex(ops)
+                let gotcha = ops.firstIndex { $0.path == gotchaPath }!
+                switch point {
+                case .afterApply(record):
+                    try put((text(ops[record].path, in: vault) ?? "") + "\nEditado.\n", ops[record].path, in: vault)
+                case .beforeApply(gotcha):
+                    try put("atual\n", gotchaPath, in: vault)
+                    throw OKSimulatedCrash()
+                default: break
+                }
+            }
+            let paths = try XCTUnwrap(c.proposal.paths)
+            let gotchaItem = c.proposal.items[1]
+
+            let pending = pending(base)
+            pending.bootstrap()
+
+            XCTAssertEqual(text(gotchaPath, in: vault), "atual\n")
+            XCTAssertNotNil(text(paths.transcript, in: vault))
+            XCTAssertNotNil(text(decisionPath, in: vault))
+            XCTAssertEqual(brokenLinks(vault), [])
+            XCTAssertFalse(MeetingProposalStore.hasJournal(c.dir))
+            let p = try XCTUnwrap(MeetingProposalStore.load(c.dir))
+            XCTAssertEqual(p.generation, c.proposal.generation)
+            XCTAssertTrue(p.recordWritten)
+            XCTAssertEqual(p.fixedPaths, paths)
+            XCTAssertEqual(p.items.map(\.id), [gotchaItem.id])
+            XCTAssertEqual(p.items.first?.baseContent, "atual\n")
+            XCTAssertEqual(try state(c.dir).okRecordPath, paths.record)
+            XCTAssertEqual(pending.items.map(\.id), [c.dir.lastPathComponent])
+            XCTAssertEqual(notices.map(\.title), ["Gravação no MegaBrain concluída em parte"])
+            XCTAssertEqual(notices.first?.body,
+                           "1 item de “Sprint review” mudou durante a gravação e voltou para revisão. O registro e a transcrição já estão no MegaBrain.")
+        }
+
+        // 3. Record deleted during the completion and its restore failing →
+        //    "incompleta": the proposal and the journal stay, and so does the
+        //    pending meeting. Without the failure, the next launch completes.
+        notices = []
+        do {
+            let base = try makeTemp()
+            let vault = try makeVault()
+            let c = try interruptedCommit(base: base, vault: vault) { ops, point in
+                let decision = ops.firstIndex { $0.path == decisionPath }!
+                switch point {
+                case .afterApply(decision):
+                    try put((text(decisionPath, in: vault) ?? "") + "\nEditado.\n", decisionPath, in: vault)
+                case .beforeApply(decision + 1):
+                    let record = recordIndex(ops)
+                    try FileManager.default.removeItem(at: vault.appendingPathComponent(ops[record].path))
+                    throw OKSimulatedCrash()
+                default: break
+                }
+            }
+            let paths = try XCTUnwrap(c.proposal.paths)
+            let record = c.index(paths.record)
+
+            let pending = pending(base)
+            pending.recoverFault = { if $0 == .forwardBeforeRestore(record) { throw Boom() } }
+            pending.bootstrap()
+
+            XCTAssertNil(text(paths.record, in: vault))
+            XCTAssertTrue(hasProposal(c.dir))
+            XCTAssertTrue(MeetingProposalStore.hasJournal(c.dir))
+            XCTAssertNil(try state(c.dir).okRecordPath)
+            XCTAssertEqual(pending.items.map(\.id), [c.dir.lastPathComponent])
+            XCTAssertEqual(notices.map(\.title), ["Gravação no MegaBrain incompleta"])
+            XCTAssertEqual(notices.first?.body,
+                           "Faltou gravar \(paths.record). O VoiceType tenta de novo no próximo início ou ao abrir a reunião.")
+
+            notices = []
+            let next = self.pending(base)
+            next.bootstrap()
+            XCTAssertNotNil(text(paths.record, in: vault))
+            XCTAssertEqual(brokenLinks(vault), [])
+            XCTAssertFalse(MeetingProposalStore.hasJournal(c.dir))
+            XCTAssertFalse(hasProposal(c.dir))
+            XCTAssertTrue(next.items.isEmpty)
+            XCTAssertTrue(notices.isEmpty, "\(notices)")
+        }
+    }
+
+    /// `PendingApprovals` has no config at all: whatever vault the settings
+    /// point at (B), recovery acts only on the vault in the journal (A).
+    func testBootstrapIgnoresConfiguredVaultAndUsesJournalVault() throws {
+        defer { removeTemps() }
+        let base = try makeTemp()
+        let vaultA = try makeVault()
+        let vaultB = try makeVault()
+        let originalA = snapshot(vaultA)
+        let originalB = snapshot(vaultB)
+        let c = try interruptedCommit(base: base, vault: vaultA) { ops, point in
+            if point == .afterApply(ops.count - 2) { throw OKSimulatedCrash() }
+        }
+        XCTAssertNotEqual(snapshot(vaultA), originalA)
+
+        let pending = pending(base)
+        pending.bootstrap()
+
+        XCTAssertEqual(snapshot(vaultA), originalA)
+        XCTAssertEqual(snapshot(vaultB), originalB)
+        XCTAssertFalse(fm.fileExists(atPath: vaultB.appendingPathComponent(".ok/local").path))
+        XCTAssertFalse(MeetingProposalStore.hasJournal(c.dir))
+        XCTAssertEqual(pending.items.map(\.id), [c.dir.lastPathComponent])
+    }
+}
+
+private final class Box<Value: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: Value
+    init(_ value: Value) { stored = value }
+    var value: Value {
+        get { lock.withLock { stored } }
+        set { lock.withLock { stored = newValue } }
+    }
+}

@@ -1,4 +1,5 @@
 import AppKit
+import Core
 import SwiftUI
 
 @main
@@ -7,6 +8,7 @@ struct VoiceTypeApp: App {
     @State private var deps: AppDependencies
     @State private var historyViewModel: HistoryViewModel
     @State private var router = MainWindowRouter()
+    @State private var approvalRouter = ApprovalRouter()
 
     init() {
         // Build the composition graph once and hand the same instance to the
@@ -29,6 +31,7 @@ struct VoiceTypeApp: App {
             MenuBarContent()
                 .environment(deps)
                 .environment(router)
+                .environment(approvalRouter)
         } label: {
             // Red dot next to the icon while a meeting records — visible without opening the menu.
             if deps.meetingRecorder.isRecording {
@@ -48,6 +51,18 @@ struct VoiceTypeApp: App {
             MainWindowView(historyViewModel: historyViewModel)
                 .environment(deps)
                 .environment(router)
+                .onAppear { ActivationPolicyTracker.enter() }
+                .onDisappear { ActivationPolicyTracker.leave() }
+        }
+        .windowResizability(.contentMinSize)
+        .commandsRemoved()
+
+        // OpenKnowledge approvals: opened only from the menu's pending list,
+        // never by itself. Placeholder until the step-by-step window lands.
+        Window(ApprovalStrings.windowTitle, id: ApprovalRouter.windowID) {
+            Text(approvalRouter.meetingDirectory.flatMap { MeetingProposalStore.load($0)?.note.summary.title } ?? ApprovalStrings.noMeeting)
+                .padding(24)
+                .frame(minWidth: 360, minHeight: 120)
                 .onAppear { ActivationPolicyTracker.enter() }
                 .onDisappear { ActivationPolicyTracker.leave() }
         }
