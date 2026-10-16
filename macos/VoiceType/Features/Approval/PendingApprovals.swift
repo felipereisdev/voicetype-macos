@@ -20,9 +20,15 @@ final class PendingApprovals {
 
     private static let log = Logger(subsystem: "com.voicetype.app", category: "approvals")
 
+    /// Recovery runs at launch, before the notification authorization
+    /// comes back, and a `Notifier` drops everything until then: each notice
+    /// waits for `bootstrap()` (the same request the app delegate starts).
     convenience init(base: URL = MeetingRecorder.baseDirectory, notifier: Notifier) {
         self.init(base: base) { title, body in
-            Task { await notifier.error(title: title, body: body) }
+            Task {
+                await notifier.bootstrap()
+                await notifier.error(title: title, body: body)
+            }
         }
     }
 

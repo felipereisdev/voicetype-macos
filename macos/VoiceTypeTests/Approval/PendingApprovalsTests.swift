@@ -1,4 +1,5 @@
 import Core
+import UserNotifications
 import XCTest
 @testable import VoiceType
 
@@ -361,6 +362,44 @@ final class PendingApprovalsTests: XCTestCase {
 
     /// `PendingApprovals` has no config at all: whatever vault the settings
     /// point at (B), recovery acts only on the vault in the journal (A).
+    /// Launch order: recovery (`AppDelegate`) runs before the authorization
+    /// request answers, and the production `Notifier` drops every
+    /// notification until then. The notice waits and arrives after the grant.
+    func testRecoveryNoticesWaitForNotificationAuthorization() async throws {
+        defer { removeTemps() }
+        let base = try makeTemp()
+        let vault = try makeVault()
+        let c = try interruptedCommit(base: base, vault: vault) { _, point in
+            if point == .afterApply(0) { throw OKSimulatedCrash() }
+        }
+        let root = try OKVaultIdentity.of(vault).root
+        try fm.removeItem(at: vault)
+
+        let center = SlowAuthCenter()
+        let notifier = Notifier(center: center, now: Date.init)
+        let pending = PendingApprovals(base: base, notifier: notifier)
+        pending.bootstrap()
+        let authorization = Task { await notifier.bootstrap() }
+        try await waitUntil { center.isAsking }
+        for _ in 0..<50 { await Task.yield() }
+        XCTAssertEqual(center.bodies, [])
+
+        center.grant()
+        await authorization.value
+        try await waitUntil { !center.bodies.isEmpty }
+        XCTAssertEqual(center.bodies, ["❌ \(ApprovalStrings.interruptedTitle) — \(ApprovalStrings.vaultUnavailableBody(root))"])
+        XCTAssertTrue(MeetingProposalStore.hasJournal(c.dir))
+        XCTAssertEqual(pending.items.map(\.id), [c.dir.lastPathComponent])
+    }
+
+    private func waitUntil(_ condition: () -> Bool, file: StaticString = #filePath, line: UInt = #line) async throws {
+        for _ in 0..<500 {
+            if condition() { return }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTFail("tempo esgotado esperando a condição", file: file, line: line)
+    }
+
     func testBootstrapIgnoresConfiguredVaultAndUsesJournalVault() throws {
         defer { removeTemps() }
         let base = try makeTemp()
@@ -381,6 +420,33 @@ final class PendingApprovalsTests: XCTestCase {
         XCTAssertFalse(fm.fileExists(atPath: vaultB.appendingPathComponent(".ok/local").path))
         XCTAssertFalse(MeetingProposalStore.hasJournal(c.dir))
         XCTAssertEqual(pending.items.map(\.id), [c.dir.lastPathComponent])
+    }
+}
+
+/// Answers the authorization request only when the test calls `grant()`,
+/// like the first prompt at launch.
+private final class SlowAuthCenter: UserNotificationCenter, @unchecked Sendable {
+    private let lock = NSLock()
+    private var pendingAuth: CheckedContinuation<Bool, Never>?
+    private var added: [UNNotificationRequest] = []
+
+    var isAsking: Bool { lock.withLock { pendingAuth != nil } }
+    var bodies: [String] { lock.withLock { added.map(\.content.body) } }
+
+    func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool {
+        await withCheckedContinuation { c in lock.withLock { pendingAuth = c } }
+    }
+
+    func add(_ request: UNNotificationRequest) async throws {
+        lock.withLock { added.append(request) }
+    }
+
+    func grant() {
+        let c = lock.withLock { () -> CheckedContinuation<Bool, Never>? in
+            defer { pendingAuth = nil }
+            return pendingAuth
+        }
+        c?.resume(returning: true)
     }
 }
 
