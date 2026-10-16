@@ -177,7 +177,7 @@ public enum OKMeetingRenderer {
 
     /// Link text on one line, with `\`, `[` and `]` escaped so it can't close
     /// the link early.
-    private static func linkText(_ title: String) -> String {
+    static func linkText(_ title: String) -> String {
         MeetingNoteRenderer.singleLine(title)
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "[", with: "\\[")
