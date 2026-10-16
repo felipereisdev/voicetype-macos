@@ -5,6 +5,7 @@ enum SystemSettingsLink {
     case accessibility
     case notifications
     case loginItems
+    case calendars
 
     var url: URL {
         switch self {
@@ -14,6 +15,8 @@ enum SystemSettingsLink {
             return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
         case .notifications:
             return URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension")!
+        case .calendars:
+            return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")!
         case .loginItems:
             return URL(string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension")!
         }

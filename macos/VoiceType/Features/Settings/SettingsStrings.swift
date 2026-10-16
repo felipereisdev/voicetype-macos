@@ -123,6 +123,10 @@ enum SettingsStrings {
     static let meetingShowInFinder = "Mostrar no Finder"
     static let meetingCLIPathLabel = "Caminho do Claude CLI (vazio = detectar)"
     static let meetingCLINotFound = "não encontrado"
+    static let meetingCalendarHeader = "Calendário"
+    static let meetingCalendarLabel = "Acesso ao Calendário"
+    static let meetingCalendarAllow = "Permitir acesso"
+    static let meetingCalendarHelp = "Lê o evento do Calendário do Mac que coincide com a gravação: o título orienta o da nota e os convidados entram nela como [[links]]. Contas Exchange/Outlook e Google adicionadas em Ajustes → Contas de Internet também contam. Nunca inicia nem para gravações."
     static let meetingCaptureHeader = "Gravação"
     static let meetingDetectionLabel = "Ao detectar reunião"
     static let meetingDetectionOptions: [(id: String, label: String)] = [

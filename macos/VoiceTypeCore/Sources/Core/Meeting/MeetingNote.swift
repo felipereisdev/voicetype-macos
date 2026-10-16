@@ -15,6 +15,9 @@ public struct MeetingNote: Sendable, Equatable {
     public var summary: MeetingSummary
     /// Merged transcript ("Você:" / "Outros:" lines). Nil = no transcript file.
     public var transcript: String?
+    /// The calendar invite, if one matched: organizer/participants become
+    /// `[[Name]]` links in the frontmatter.
+    public var event: MeetingCalendarEvent?
 
     public init(
         id: UUID = UUID(),
@@ -22,7 +25,8 @@ public struct MeetingNote: Sendable, Equatable {
         duration: TimeInterval,
         platform: String? = nil,
         summary: MeetingSummary,
-        transcript: String? = nil
+        transcript: String? = nil,
+        event: MeetingCalendarEvent? = nil
     ) {
         self.id = id
         self.startedAt = startedAt
@@ -30,6 +34,7 @@ public struct MeetingNote: Sendable, Equatable {
         self.platform = platform
         self.summary = summary
         self.transcript = transcript
+        self.event = event
     }
 }
 
@@ -75,6 +80,9 @@ public enum MeetingNoteRenderer {
         if let org = s.org { fields.append(("org", yamlString("[[\(org)]]"))) }
         if let client = s.client { fields.append(("client", yamlString(client))) }
         if let type = s.meetingType { fields.append(("meeting_type", type)) }
+        if let organizer = note.event?.organizer.map(personLink) { fields.append(("organizer", yamlString(organizer))) }
+        let people = (note.event?.participants ?? []).map(personLink)
+        if !people.isEmpty { fields.append(("participants", "[" + people.map(yamlString).joined(separator: ", ") + "]")) }
         if let transcriptLink { fields.append(("transcript", yamlString("[[\(transcriptLink)]]"))) }
         fields.append(("tags", "[meeting]"))
 
@@ -85,10 +93,19 @@ public enum MeetingNoteRenderer {
         if !s.actionItems.isEmpty {
             out += "\n## Action items\n\n" + s.actionItems.map { taskLine($0) + "\n" }.joined()
         }
+        if let speakers = s.speakers, !speakers.isEmpty {
+            out += "\n## Vozes\n\n" + speakers.map { "- \($0.label): provavelmente \(personLink($0.name))\n" }.joined()
+                + "\nSugestão a partir da conversa; a transcrição mantém os rótulos originais.\n"
+        }
         if let transcriptLink {
             out += "\n## Transcrição\n\n[[\(transcriptLink)]]\n"
         }
         return out
+    }
+
+    /// `[[Ana Silva]]`; characters that break a wikilink are dropped.
+    static func personLink(_ name: String) -> String {
+        "[[\(fileSafe(name))]]"
     }
 
     /// Dataview task: `- [ ] task [owner:: Nome] [due:: 2026-10-16]`.

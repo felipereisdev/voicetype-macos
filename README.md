@@ -23,6 +23,7 @@ Segure `Alt+N` e fale uma ideia. O texto vira uma nota com título e tags em `<p
 - Enquanto grava, o ícone da barra de menu ganha um ponto vermelho. Também dá para iniciar/parar manualmente pelo menu ("Gravar reunião").
 - Grava microfone + áudio do sistema, transcreve localmente (WhisperKit) e gera o resumo com o **Claude CLI** (`claude -p`, usa sua assinatura, não API paga).
 - Separa as vozes remotas localmente (FluidAudio, macOS 15+): no transcript e no resumo você é "Você" e os demais viram "Outro 1", "Outro 2"… (sem nomes). No macOS 14 ou com uma voz só, fica "Outros".
+- **Calendário (opcional):** com acesso concedido em Configurações → Reuniões, o app acha no Calendário do Mac o evento que coincide com a gravação. Contas Exchange/Outlook e Google adicionadas em Ajustes → Contas de Internet também contam. O título do convite orienta o da nota, organizador e convidados viram `[[Nome]]` no frontmatter, e o resumo pode sugerir quem é cada "Outro N" ("provavelmente [[Ana Silva]]") quando a conversa deixa claro. O rótulo original da transcrição nunca é trocado. O calendário nunca inicia nem para gravações.
 - Saída em Markdown pronta para **Obsidian**:
   - `<pasta>/Meetings/AAAA/…md` — nota com resumo, decisões e tarefas (formato Dataview `[owner::] [due::]`), frontmatter com organização/cliente;
   - `<pasta>/Transcripts/AAAA/…md` — transcrição completa;
@@ -80,6 +81,7 @@ Compila em Release, copia para `/Applications/VoiceType.app`, assina com `VoiceT
 - **Microfone:** o macOS pergunta → Permitir.
 - **Acessibilidade:** Ajustes do Sistema → Privacidade e Segurança → Acessibilidade → ativar VoiceType (necessário para o atalho global e para colar). O atalho passa a funcionar sozinho em ~1 s, sem reabrir.
 - **Gravação de áudio do sistema:** pedida na primeira gravação de reunião → Permitir.
+- **Calendário (opcional):** Configurações → Reuniões → Permitir acesso.
 - **Notificações:** permitir, para ver avisos de erro e de "ideia salva".
 
 ### 5. Configurar

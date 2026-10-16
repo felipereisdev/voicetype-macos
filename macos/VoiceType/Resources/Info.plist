@@ -30,6 +30,8 @@
     <true/>
     <key>NSAudioCaptureUsageDescription</key>
     <string>VoiceType grava o áudio do sistema durante reuniões para gerar a transcrição e o resumo.</string>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>VoiceType lê o evento do calendário durante uma reunião gravada para dar título à nota e listar os participantes.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>VoiceType precisa do microfone para transcrever sua fala via Groq Whisper.</string>
     <key>NSHumanReadableCopyright</key>

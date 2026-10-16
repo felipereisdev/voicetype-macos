@@ -19,6 +19,18 @@ public struct MeetingSummary: Codable, Sendable, Equatable {
         }
     }
 
+    /// "Outro 2 is probably Ana Silva": a guess from what was said, only
+    /// ever a calendar invitee. Optional so older/fallback JSON still decodes.
+    public struct SpeakerGuess: Codable, Sendable, Equatable {
+        public var label: String
+        public var name: String
+
+        public init(label: String, name: String) {
+            self.label = label
+            self.name = name
+        }
+    }
+
     public var title: String
     public var summary: String
     public var decisions: [String]
@@ -29,6 +41,8 @@ public struct MeetingSummary: Codable, Sendable, Equatable {
     public var client: String?
     /// One of `meetingTypes`, or nil.
     public var meetingType: String?
+    /// Nil or empty = no guesses.
+    public var speakers: [SpeakerGuess]?
 
     public static let meetingTypes = [
         "standup", "sprint_review", "planning", "refinement", "alignment",
@@ -37,7 +51,8 @@ public struct MeetingSummary: Codable, Sendable, Equatable {
 
     public init(
         title: String, summary: String, decisions: [String] = [], actionItems: [ActionItem] = [],
-        org: String? = nil, client: String? = nil, meetingType: String? = nil
+        org: String? = nil, client: String? = nil, meetingType: String? = nil,
+        speakers: [SpeakerGuess]? = nil
     ) {
         self.title = title
         self.summary = summary
@@ -46,6 +61,7 @@ public struct MeetingSummary: Codable, Sendable, Equatable {
         self.org = org
         self.client = client
         self.meetingType = meetingType
+        self.speakers = speakers
     }
 
     public enum ValidationError: Error, Sendable, Equatable {
@@ -55,8 +71,10 @@ public struct MeetingSummary: Codable, Sendable, Equatable {
 
     /// Trims every field, drops empty list entries and blank optionals,
     /// normalizes org/client against `orgs`, drops unknown meeting types and
-    /// non-ISO due dates. Throws when the two mandatory fields are blank.
-    public func validated(orgs: [MeetingOrg]) throws -> MeetingSummary {
+    /// non-ISO due dates, and speaker guesses that aren't an "Outro N" label
+    /// matched to one of `invitees` (first guess per label/name wins).
+    /// Throws when the two mandatory fields are blank.
+    public func validated(orgs: [MeetingOrg], invitees: [String] = []) throws -> MeetingSummary {
         func clean(_ s: String) -> String { s.trimmingCharacters(in: .whitespacesAndNewlines) }
         func cleanOptional(_ s: String?) -> String? {
             guard let s else { return nil }
@@ -71,6 +89,15 @@ public struct MeetingSummary: Codable, Sendable, Equatable {
 
         let resolved = MeetingOrg.resolve(org: org, client: client, in: orgs)
         let type = cleanOptional(meetingType)?.lowercased()
+        var labels = Set<String>(), names = Set<String>()
+        let guesses = (speakers ?? []).compactMap { g -> SpeakerGuess? in
+            let label = clean(g.label), name = clean(g.name)
+            guard label.wholeMatch(of: #/Outro [1-9][0-9]*/#) != nil, invitees.contains(name),
+                  !labels.contains(label), !names.contains(name) else { return nil }
+            labels.insert(label)
+            names.insert(name)
+            return SpeakerGuess(label: label, name: name)
+        }
         return MeetingSummary(
             title: title,
             summary: summary,
@@ -82,7 +109,8 @@ public struct MeetingSummary: Codable, Sendable, Equatable {
             },
             org: resolved.org,
             client: resolved.client,
-            meetingType: type.flatMap { Self.meetingTypes.contains($0) ? $0 : nil }
+            meetingType: type.flatMap { Self.meetingTypes.contains($0) ? $0 : nil },
+            speakers: guesses.isEmpty ? nil : guesses
         )
     }
 
@@ -97,8 +125,9 @@ public struct MeetingSummary: Codable, Sendable, Equatable {
     }
 
     /// JSON Schema handed to the provider (e.g. `claude -p --json-schema`).
-    /// org/client are enums of the catalog's canonical names (or null).
-    public static func jsonSchema(orgs: [MeetingOrg]) -> String {
+    /// org/client are enums of the catalog's canonical names (or null);
+    /// speaker names are an enum of `invitees` (no invitees = no guesses).
+    public static func jsonSchema(orgs: [MeetingOrg], invitees: [String] = []) -> String {
         func nullableEnum(_ values: [String]) -> [String: Any] {
             ["type": ["string", "null"], "enum": values.map { $0 as Any } + [NSNull()]]
         }
@@ -110,9 +139,19 @@ public struct MeetingSummary: Codable, Sendable, Equatable {
                 "dueDate": ["type": ["string", "null"], "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"],
             ],
         ]
+        let speaker: [String: Any] = [
+            "type": "object", "additionalProperties": false, "required": ["label", "name"],
+            "properties": [
+                "label": ["type": "string", "pattern": "^Outro [1-9][0-9]*$"],
+                "name": ["type": "string", "enum": invitees],
+            ],
+        ]
+        let speakers: [String: Any] = invitees.isEmpty
+            ? ["type": "array", "maxItems": 0]
+            : ["type": "array", "items": speaker]
         let schema: [String: Any] = [
             "type": "object", "additionalProperties": false,
-            "required": ["title", "summary", "decisions", "actionItems", "org", "client", "meetingType"],
+            "required": ["title", "summary", "decisions", "actionItems", "org", "client", "meetingType", "speakers"],
             "properties": [
                 "title": ["type": "string"],
                 "summary": ["type": "string"],
@@ -121,6 +160,7 @@ public struct MeetingSummary: Codable, Sendable, Equatable {
                 "org": nullableEnum(orgs.map(\.name)),
                 "client": nullableEnum(orgs.flatMap { $0.clients.map(\.name) }),
                 "meetingType": nullableEnum(meetingTypes),
+                "speakers": speakers,
             ],
         ]
         // Only literals above: serialization cannot fail.

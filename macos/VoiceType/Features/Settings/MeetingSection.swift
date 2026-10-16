@@ -1,4 +1,5 @@
 import AppKit
+import EventKit
 import SwiftUI
 import Core
 
@@ -8,6 +9,7 @@ struct MeetingSection: View {
     /// and is saved only while it validates (a mid-typing "a, " would
     /// otherwise round-trip to "a").
     @State private var draft: [OrgDraft] = []
+    @State private var calendarStatus = EKEventStore.authorizationStatus(for: .event)
 
     private var detectedCLI: String {
         ClaudeCLISummarizer.locate(configured: nil)?.path ?? SettingsStrings.meetingCLINotFound
@@ -35,6 +37,32 @@ struct MeetingSection: View {
                         Task { await snapshot.update { $0.claudeCLIPath = value } }
                     }
                 ), prompt: Text(detectedCLI))
+            }
+
+            Section {
+                HStack {
+                    Label(SettingsStrings.meetingCalendarLabel, systemImage: "calendar")
+                    Spacer()
+                    if calendarStatus == .fullAccess {
+                        Text(SettingsStrings.permissionGranted).font(.caption).foregroundStyle(.green)
+                    } else if calendarStatus == .notDetermined {
+                        Button(SettingsStrings.meetingCalendarAllow) {
+                            Task {
+                                _ = try? await EKEventStore().requestFullAccessToEvents()
+                                calendarStatus = EKEventStore.authorizationStatus(for: .event)
+                            }
+                        }
+                        .controlSize(.small)
+                    } else {
+                        Button(SettingsStrings.openSystemSettings) { SystemSettingsLink.calendars.open() }
+                            .controlSize(.small)
+                    }
+                }
+                Text(SettingsStrings.meetingCalendarHelp)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } header: {
+                Text(SettingsStrings.meetingCalendarHeader)
             }
 
             Section(SettingsStrings.meetingCaptureHeader) {
@@ -142,7 +170,10 @@ struct MeetingSection: View {
         }
         .formStyle(.grouped)
         .navigationTitle(SettingsStrings.sidebarMeetings)
-        .onAppear { draft = snapshot.config.meetingOrgs.map(OrgDraft.init) }
+        .onAppear {
+            draft = snapshot.config.meetingOrgs.map(OrgDraft.init)
+            calendarStatus = EKEventStore.authorizationStatus(for: .event)
+        }
         .onChange(of: draft) { _, next in
             let orgs = next.map(\.org)
             guard MeetingOrg.validationIssues(orgs).isEmpty, orgs != snapshot.config.meetingOrgs else { return }

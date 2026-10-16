@@ -72,17 +72,20 @@ actor MeetingProcessor {
                 MeetingTranscript.process(utterances), turns: turns
             ))
             let cfg = (try? await configStore.load()) ?? AppConfig()
-
-            let (summary, failure) = await summarize(
-                transcript, cliPath: cfg.claudeCLIPath, meetingDate: manifest.startedAt, orgs: cfg.meetingOrgs
-            )
-            var state = Self.loadState(dir) ?? MeetingPipelineState()
             let end = manifest.endedAt ?? manifest.segments.compactMap(\.closedAt).max() ?? manifest.startedAt
+            let event = MeetingCalendar.event(for: dir, start: manifest.startedAt, end: end)
+
+            var (summary, failure) = await summarize(
+                transcript, cliPath: cfg.claudeCLIPath, meetingDate: manifest.startedAt, orgs: cfg.meetingOrgs, event: event
+            )
+            if failure != nil, let title = event?.title, !title.isEmpty { summary.title = title }
+            var state = Self.loadState(dir) ?? MeetingPipelineState()
             let note = MeetingNote(
                 id: state.noteID, startedAt: manifest.startedAt,
                 duration: end.timeIntervalSince(manifest.startedAt),
                 platform: manifest.platform, summary: summary,
-                transcript: transcript.isEmpty ? nil : transcript
+                transcript: transcript.isEmpty ? nil : transcript,
+                event: event
             )
             let folder = URL(fileURLWithPath: (cfg.meetingNotesFolder as NSString).expandingTildeInPath, isDirectory: true)
             let written = try MeetingNoteWriter.write(note, to: folder)
@@ -182,7 +185,7 @@ actor MeetingProcessor {
     /// Never throws: on any failure the note still gets written with the
     /// transcript and a "Resumo indisponível" placeholder.
     private func summarize(
-        _ transcript: String, cliPath: String?, meetingDate: Date, orgs: [MeetingOrg]
+        _ transcript: String, cliPath: String?, meetingDate: Date, orgs: [MeetingOrg], event: MeetingCalendarEvent?
     ) async -> (MeetingSummary, String?) {
         func unavailable(_ reason: String) -> (MeetingSummary, String?) {
             (MeetingSummary(title: "Reunião", summary: "Resumo indisponível: \(reason)"), reason)
@@ -193,7 +196,7 @@ actor MeetingProcessor {
         }
         do {
             let summary = try await ClaudeCLISummarizer(executableURL: cli)
-                .summarize(transcript: transcript, meetingDate: meetingDate, orgs: orgs)
+                .summarize(transcript: transcript, meetingDate: meetingDate, orgs: orgs, event: event)
             return (summary, nil)
         } catch let error as ClaudeCLISummarizer.CLIError {
             return unavailable(error.reason)
