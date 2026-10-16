@@ -123,6 +123,14 @@ struct OKDistillationTests {
         #expect(item.markdown.hasSuffix("\n## Fontes\n\n- [Reunião 2026-10-16 — Sprint review](../reunioes/2026-10-16-sprint-review.md)\n"))
     }
 
+    @Test func writtenIndexOutsideThePlanIsDroppedForAnyInt() {
+        let plan = [newPlan, OKPlannedItem(action: .new, type: .gotcha, path: "p5/gotchas/cache.md", title: "Cache", reason: "r")]
+        for index in [Int.min, Int.min + 1, -1, 0, 3, Int.max] {
+            #expect(validate([.init(index: index, markdown: newDecision())], plan: plan).isEmpty, "index \(index)")
+        }
+        #expect(validate([.init(index: 2, markdown: newDecision())], plan: plan).map(\.path) == ["p5/gotchas/cache.md"])
+    }
+
     @Test func writtenValidationDropsTODOEmptyAndMissingFrontmatter() {
         let todo = newDecision(title: "'TODO — x'")
         let emptyTitle = newDecision(title: "''")

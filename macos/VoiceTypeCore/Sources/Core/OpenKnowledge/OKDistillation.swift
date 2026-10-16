@@ -146,7 +146,8 @@ public enum OKDistillation {
         var used: Set<Int> = []
         var items: [OKProposedItem] = []
         for written in raw {
-            guard plan.indices.contains(written.index - 1), used.insert(written.index).inserted else { continue }
+            // Compared before any arithmetic: the model's Int can be anything, Int.min included.
+            guard written.index >= 1, written.index <= plan.count, used.insert(written.index).inserted else { continue }
             let planned = plan[written.index - 1]
             guard OKFrontmatter.split(written.markdown).frontmatter != nil else { continue }
             var md = OKFrontmatter.setting("type", to: planned.type.rawValue, in: written.markdown)
@@ -294,7 +295,7 @@ public enum OKDistillation {
                 "type": "array",
                 "items": [
                     "type": "object", "additionalProperties": false, "required": ["index", "markdown"],
-                    "properties": ["index": ["type": "integer"], "markdown": ["type": "string"]],
+                    "properties": ["index": ["type": "integer", "minimum": 1], "markdown": ["type": "string"]],
                 ] as [String: Any],
             ] as [String: Any],
         ],
