@@ -533,20 +533,22 @@ public enum OKMarkdownHTML {
         return head.contains(":") ? nil : url
     }
 
+    /// Escapes `& < > " '` scalar by scalar: a metacharacter glued to a
+    /// combining mark (`"` + U+0301) or after a prepend character is one
+    /// `Character`, and comparing graphemes would let it through raw.
     static func escape(_ text: String) -> String {
-        var out = ""
-        out.reserveCapacity(text.utf8.count)
-        for ch in text {
-            switch ch {
-            case "&": out += "&amp;"
-            case "<": out += "&lt;"
-            case ">": out += "&gt;"
-            case "\"": out += "&quot;"
-            case "'": out += "&#39;"
-            default: out.append(ch)
+        var out = String.UnicodeScalarView()
+        for scalar in text.unicodeScalars {
+            switch scalar {
+            case "&": out.append(contentsOf: "&amp;".unicodeScalars)
+            case "<": out.append(contentsOf: "&lt;".unicodeScalars)
+            case ">": out.append(contentsOf: "&gt;".unicodeScalars)
+            case "\"": out.append(contentsOf: "&quot;".unicodeScalars)
+            case "'": out.append(contentsOf: "&#39;".unicodeScalars)
+            default: out.append(scalar)
             }
         }
-        return out
+        return String(out)
     }
 
     /// Lines of `text`; a trailing newline doesn't make an extra empty line.

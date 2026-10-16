@@ -91,6 +91,112 @@ struct OKMarkdownHTMLTests {
         #expect(block.contains("…"))
         #expect(!block.contains(">l1<") && block.contains(">l19<") && block.contains(">l20<"))
     }
+
+    // MARK: - Metacharacters glued to combining / prepend characters
+    //
+    // `"` + U+0301 (combining acute) and U+0600 (prepend) + `"` are single
+    // grapheme clusters, so a `Character` comparison never sees the `"`. These
+    // checks look at Unicode scalars, which is what the HTML parser reads.
+
+    /// Metacharacters glued to a neighbor that joins their grapheme cluster.
+    static let glued: [String] = ["&", "<", ">", "\"", "'"].flatMap { ["\($0)\u{301}", "\u{600}\($0)", "\u{600}\($0)\u{301}"] }
+
+    @Test func escapeWorksPerScalarNotPerGrapheme() {
+        let input = "\u{600}\"x\"\u{301}<\u{301}&\u{301}'\u{301}>\u{20DD}"
+        let expected = "\u{600}&quot;x&quot;\u{301}&lt;\u{301}&amp;\u{301}&#39;\u{301}&gt;\u{20DD}"
+        #expect(Array(OKMarkdownHTML.escape(input).unicodeScalars) == Array(expected.unicodeScalars))
+    }
+
+    @Test func combiningQuoteCannotBreakOutOfHref() {
+        let md = "[x](<https://e.test/\"\u{301}/style=\"\u{301};position:fixed;inset:0;background:white;z-index:9999\"\u{301}>)"
+        let html = OKMarkdownHTML.body(md)
+        let tags = Self.tags(html)
+        #expect(tags.count == 4)  // <p>, <a href="…">, </a>, </p>
+        let anchors = tags.filter { $0.hasPrefix("<a") }
+        #expect(anchors.count == 1)
+        for anchor in anchors {
+            // Only `href` is an attribute: "style=" survives as escaped URL text.
+            #expect(anchor.unicodeScalars.filter { $0 == "\"" }.count == 2)
+            #expect(anchor.unicodeScalars.starts(with: "<a href=\"".unicodeScalars))
+            #expect(Array(anchor.unicodeScalars.suffix(2)) == Array("\">".unicodeScalars))
+            #expect(Self.scalarContains(anchor, "&quot;\u{301}/style=&quot;\u{301};position:fixed"))
+        }
+    }
+
+    @Test func gluedMetacharactersNeverReachTheMarkup() {
+        for meta in Self.glued {
+            let samples = [
+                "texto \(meta)b\(meta)",
+                "# título \(meta)",
+                "- item \(meta)\n- [x] \(meta)",
+                "| A\(meta) | B |\n| --- | --- |\n| \(meta) | 2 |",
+                "> [!info\(meta)] Título \(meta)\n> corpo \(meta)",
+                "```js\(meta)\ncódigo \(meta)\n```",
+                "`code \(meta)` **n\(meta)** *i\(meta)* [r\(meta)](../a\(meta).md) [h](https://e.test/\(meta))",
+                "---\ntitle: \"\(meta)\"\nk\(meta): v\(meta)\n---\n",
+            ]
+            for md in samples {
+                let page = OKMarkdownHTML.document(md, previous: md + "\n\(meta)")
+                let pageBody = page.components(separatedBy: "<body>").dropFirst().joined(separator: "<body>")
+                for html in [OKMarkdownHTML.body(md), pageBody] {
+                    #expect(Self.onlyKnownMarkup(html), "\(Array(md.unicodeScalars))")
+                }
+            }
+        }
+    }
+
+    // MARK: - Scalar helpers
+
+    /// Every `<…>` in `html`, read scalar by scalar.
+    static func tags(_ html: String) -> [String] {
+        var tags: [String] = []
+        var current: String.UnicodeScalarView?
+        for scalar in html.unicodeScalars {
+            if scalar == "<" { current = String.UnicodeScalarView() }
+            current?.append(scalar)
+            if scalar == ">", let tag = current {
+                tags.append(String(tag))
+                current = nil
+            }
+        }
+        return tags
+    }
+
+    static func scalarContains(_ haystack: String, _ needle: String) -> Bool {
+        let h = Array(haystack.unicodeScalars), n = Array(needle.unicodeScalars)
+        guard n.count <= h.count else { return false }
+        return (0...(h.count - n.count)).contains { Array(h[$0..<($0 + n.count)]) == n }
+    }
+
+    /// Outside tags, every `&` starts one of the five entities and no raw
+    /// `<`, `>`, `"` or `'` appears; inside tags, every scalar is ASCII
+    /// (element names, fixed attributes, escaped values) and quotes pair up.
+    static func onlyKnownMarkup(_ html: String) -> Bool {
+        let scalars = Array(html.unicodeScalars)
+        var inTag = false
+        var quotes = 0
+        var i = 0
+        while i < scalars.count {
+            let s = scalars[i]
+            if inTag {
+                if s == "\"" { quotes += 1 }
+                if s == ">", quotes % 2 == 0 { inTag = false }
+                // Escaped href values may hold non-ASCII text, never a raw quote.
+                if s == "'" || s == "<" { return false }
+            } else if s == "<" {
+                inTag = true
+                quotes = 0
+            } else if s == ">" || s == "\"" || s == "'" {
+                return false
+            } else if s == "&" {
+                let rest = String(String.UnicodeScalarView(scalars[i..<min(i + 6, scalars.count)]))
+                guard ["&amp;", "&lt;", "&gt;", "&quot;", "&#39;"].contains(where: { rest.unicodeScalars.starts(with: $0.unicodeScalars) })
+                else { return false }
+            }
+            i += 1
+        }
+        return !inTag
+    }
 }
 
 @Suite("OKLineDiff")
