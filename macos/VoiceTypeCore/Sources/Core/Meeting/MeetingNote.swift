@@ -271,11 +271,16 @@ public enum MeetingNoteWriter {
         }
     }
 
-    /// True when the file's frontmatter carries `id: <id>`. Reads only the head.
+    /// True when the file's frontmatter carries `id: <id>`. Reads only the
+    /// head (64 KiB): an OpenKnowledge record puts `id` after the title,
+    /// description and participants, so it can sit well past the first lines.
     static func belongs(_ url: URL, to id: UUID) -> Bool {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
         defer { try? handle.close() }
-        guard let head = try? handle.read(upToCount: 512), let text = String(data: head, encoding: .utf8) else { return false }
-        return text.hasPrefix("---\n") && text.contains("\nid: \(id.uuidString)\n")
+        guard let head = try? handle.read(upToCount: 64 * 1024) else { return false }
+        let text = String(decoding: head, as: UTF8.self)
+        guard text.hasPrefix("---\n") else { return false }
+        let frontmatter = text.range(of: "\n---\n").map { text[..<$0.upperBound] } ?? text[...]
+        return frontmatter.contains("\nid: \(id.uuidString)\n")
     }
 }
