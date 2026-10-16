@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-VoiceType — native macOS menu-bar app for macOS 14+ (arm64) that captures voice via global shortcut, transcribes via Groq Whisper, refines via Groq Llama, and pastes the result into the focused app. Single user (the author). PT-BR is the user-facing language; UI copy and validation messages are in Portuguese, code identifiers in English.
+VoiceType — native macOS menu-bar app for macOS 14+ (arm64) that captures voice via global shortcut, transcribes and refines on-device (WhisperKit + Apple FoundationModels, Groq as fallback), and pastes the result into the focused app. Also records meetings (detection, diarization, calendar invite) and writes summarized notes to an Obsidian vault. Single user (the author). PT-BR is the user-facing language; UI copy and validation messages are in Portuguese, code identifiers in English.
 
 Status: **shipping**. Daily driver at `/Applications/VoiceType.app`. Native Swift 5.10 + SwiftUI + AppKit. The previous Electron 30 build has been removed.
 
@@ -27,39 +27,51 @@ There is no separate linter; the Swift compiler in strict-concurrency mode is th
 
 ## Architecture
 
-Native macOS app, Swift 5.10 + SwiftUI + AppKit. Two-target layout:
+Native macOS app, Swift 5.10 + SwiftUI + AppKit. Two-target layout (component diagram + file links: README → "Arquitetura"):
 
 ```
 macos/
 ├── VoiceType.xcodeproj
 ├── VoiceType/                    App target (AppKit + SwiftUI shells)
-│   ├── App/                      @main, AppDelegate, AppCoordinator
-│   ├── MenuBar/, HUD/, Settings/, History/
-│   ├── Shortcut/                 Custom CGEventTap HoldDetector (no third-party dep)
-│   ├── Audio/                    AVAudioEngine recorder, WavEncoder, AudioDeviceResolver
-│   ├── Output/                   Paster (NSPasteboard + synthesized Cmd+V via CGEvent)
-│   ├── Notifications/, AutoStart/, Permissions/
-│   └── Resources/                Assets.xcassets/AppIcon.appiconset, Info.plist
+│   ├── App/                      @main (VoiceTypeApp), AppDelegate, AppDependencies (composition root),
+│   │                             RecordingOrchestrator, Adapters/ (Core use-case protocols → app services)
+│   ├── Features/
+│   │   ├── Recording/
+│   │   │   ├── Shortcut/         ShortcutManager + custom CGEventTap HoldDetector (no third-party dep)
+│   │   │   ├── Audio/            AVAudioEngine AudioRecorder, WavEncoder, AudioDeviceResolver
+│   │   │   ├── Transcription/    LocalTranscriber (WhisperKit on-device) + WhisperModelManager
+│   │   │   ├── Refinement/       LocalRefiner/LocalTranslator (FoundationModels), cursor context
+│   │   │   ├── Output/           Paster (AX insert, else NSPasteboard + synthesized Cmd+V)
+│   │   │   └── HUD/              recording indicator (notch / pill)
+│   │   ├── Meeting/              detection, mic + system-audio capture, diarization, calendar, processing
+│   │   ├── MenuBar/, Settings/, History/
+│   ├── Platform/                 ActivationPolicy/, AutoStart/, Notifications/, Permissions/
+│   └── Resources/                Assets.xcassets, Info.plist
 ├── VoiceTypeCore/                SwiftPM package (no AppKit; fully testable)
 │   ├── Sources/Core/
 │   │   ├── StateMachine/         AppStateMachine (actor)
 │   │   ├── Config/               ConfigStore (actor) + AppConfig (Codable)
-│   │   ├── History/              HistoryStore (actor), capped at 500
-│   │   ├── Pipeline/             Transcriber, Refiner, Translator, Pipeline (actor)
+│   │   ├── History/              HistoryStore (actor)
+│   │   ├── Pipeline/             Transcriber, Refiner, Translator, Pipeline (actor), fallbacks/guards
+│   │   ├── UseCases/             Start/Stop recording, RunPipeline
+│   │   ├── Meeting/              transcript, summary (claude CLI), note/daily/idea renderers, calendar match
+│   │   ├── Learning/             edit alignment → vocabulary suggestions
 │   │   └── GroqClient/           URLSession async/await
 │   └── Tests/CoreTests/          swift-testing
-├── build/                        entitlements.plist
-└── scripts/                      make-icons.sh
+├── build/                        entitlements.plist, exportOptions.plist
+└── scripts/                      install.sh, make-icons.sh, release.sh
 ```
 
-Pipeline: shortcut → `AudioRecorder` (AVAudioEngine, 16 kHz mono, WAV) → `Pipeline.run` (Whisper transcribe → Llama refine/translate) → `Paster` (NSPasteboard + CGEvent Cmd+V) → `HistoryStore.add`.
+Dictation: shortcut → `RecordingOrchestrator` → `AudioRecorder` (AVAudioEngine, 16 kHz mono, WAV) → `RunPipelineUseCase` → `Pipeline.run` (on-device Whisper, Groq fallback → on-device refine/translate, Groq fallback, raw text if both fail) → `Paster` → `HistoryStore.add`.
+
+Meetings: `MeetingDetector` notices a call → `MeetingRecorder` (mic + system audio) → `MeetingProcessor` (local transcription → `MeetingDiarizer` "Outro N" voices → `MeetingCalendar` invite → `ClaudeCLISummarizer`) → Markdown note + transcript in the Obsidian vault. Voice notes (`IdeaNote`) go to the daily note.
 
 Key rules:
 
-- **`AppConfig` is `Codable` in `VoiceTypeCore`.** Single source of truth. Adding a field: edit `AppConfig.swift`, add a default in the init, add a ConfigStore round-trip test. `schemaVersion` is the migration hook (currently `1`).
+- **`AppConfig` is `Codable` in `VoiceTypeCore`.** Single source of truth. Adding a field: edit `AppConfig.swift`, add a default in the init, add a ConfigStore round-trip test. `schemaVersion` is the migration hook (currently `2`; decoder migrates v1).
 - **State machine** (`VoiceTypeCore/Sources/Core/StateMachine/AppStateMachine.swift`) is a Swift `actor`. Invalid transitions log + no-op, never throw.
 - **`ConfigStore` is an actor**, atomic write (tmp + rename), subscribers notified inside `save(_:)` — array is copied before iteration to avoid reentrancy issues.
-- **`HistoryStore` cap is 500 (hard)**. `cfg.historyEnabled` gates whether `AppCoordinator` calls `add(_:)`; `cfg.historyRetentionCount` currently persists but doesn't narrow the cap (follow-up).
+- **`HistoryStore` cap** is `cfg.history.retentionCount` (default cap 500). `cfg.history.enabled` gates whether `RecordingOrchestrator` records entries.
 - **Menu-bar app**: `NSApp.setActivationPolicy(.accessory)` at boot + `LSUIElement = YES` in Info.plist. No Dock icon by default; `ActivationPolicyTracker` flips to `.regular` while Settings or History windows are open. **Always** use `MenuBarExtra` + `Window(id:)` scenes for accessory apps — never `Settings { }` scene (macOS 14+ silently no-ops `showSettingsWindow:`).
 - **`HoldDetector`** uses `CGEventTap` with `.defaultTap` (not `.listenOnly`) so it can swallow the main key on registered shortcuts. **Drop `@MainActor` from the tap callback** — `MainActor.assumeIsolated` segfaults from `@convention(c) CGEventTapCallBack` on macOS 14+. Guard core mutations with `NSLock`. Modifier flag events (`.flagsChanged`) are forwarded but never swallowed.
 - **TCC grants follow the designated requirement (DR)**. Install only via `macos/scripts/install.sh`: it signs with the self-signed identity `VoiceType Local` (`--identifier com.macsilva.VoiceType`), giving DR `identifier … and certificate leaf = H"…"`, stable across builds. Ad-hoc (`--sign -`) gives DR `cdhash H"…"`, which changes every build → Accessibility/Mic grants silently stop matching after each reinstall (G-002, G-033). Without the right identifier, `UNUserNotificationCenter.requestAuthorization` also returns `notificationsNotAllowed`.
