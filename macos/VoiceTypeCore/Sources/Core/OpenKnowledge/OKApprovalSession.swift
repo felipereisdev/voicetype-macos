@@ -31,7 +31,8 @@ public struct OKApprovalProgress: Codable, Equatable, Sendable {
     public var project: String?
     public var newProject: OKNewProject?
     public var stepIndex: Int
-    /// Hash of the approved record Markdown.
+    /// Stamp of the approved record: its Markdown bound to the record and
+    /// transcript versions it replaces (`OKApprovalSession.recordStamp`).
     public var recordApproval: String?
     public var recordEdit: String?
     public var decisions: [UUID: OKItemDecision]
@@ -94,8 +95,6 @@ public struct OKApprovalSession: Equatable, Sendable {
     public private(set) var progress: OKApprovalProgress
     /// The record's date and the approval stamps use it.
     public let timeZone: TimeZone
-    /// The record found in the vault by the last conflict, for the diff.
-    private var recordCurrentContent: String?
 
     /// Progress of another generation is ignored: nothing of an earlier
     /// proposal comes back.
@@ -132,7 +131,15 @@ public struct OKApprovalSession: Equatable, Sendable {
     public var needsRedistill: Bool { chosenProject != proposal.project }
 
     public var recordApproved: Bool {
-        proposal.recordWritten || progress.recordApproval == Self.hash(markdown(for: .record))
+        proposal.recordWritten || progress.recordApproval == recordStamp()
+    }
+
+    /// The record's approval stamp: the hash of its Markdown shown now and of
+    /// the versions in the vault it replaces, so a new conflict on the record
+    /// or the transcript voids the approval even with the same Markdown.
+    public func recordStamp() -> String {
+        Self.hash([Self.hash(markdown(for: .record)), proposal.existingRecordHash ?? "-", proposal.existingTranscriptHash ?? "-"]
+            .joined(separator: "\n"))
     }
 
     public func isApproved(_ id: UUID) -> Bool {
@@ -175,7 +182,7 @@ public struct OKApprovalSession: Equatable, Sendable {
         case .project:
             guard chosenProject != nil else { return }
         case .record:
-            progress.recordApproval = Self.hash(markdown(for: .record))
+            progress.recordApproval = recordStamp()
         case let .item(id):
             progress.decisions[id] = .approved(contentHash: Self.hash(markdown(for: .item(id))), baseHash: item(id)?.baseHash)
         }
@@ -233,18 +240,21 @@ public struct OKApprovalSession: Equatable, Sendable {
     public func previousMarkdown(for step: Step) -> String? {
         switch step {
         case .project: nil
-        case .record: recordCurrentContent
+        case .record: proposal.existingRecordContent
         case let .item(id): item(id)?.baseContent
         }
     }
 
     // MARK: - Proposal changes
 
-    /// After a redistillation: each new item takes the decision and edit of
-    /// the old item with the same `action` and `path`. A carried approval
-    /// only holds if its stamp matches the new item (same Markdown and same
-    /// `baseHash`). Returns the items to review and moves to the first
-    /// pending step.
+    /// After a redistillation (or a project change without the model): each
+    /// new item takes the decision and edit of the old item with the same
+    /// `action` and `path`. A carried approval only holds if its stamp
+    /// matches the new item (same Markdown and same `baseHash`). When the
+    /// record's destination changed (`paths` or project, as `redistill` and
+    /// `repath` recompute them), the carried edits are retargeted first (see
+    /// `retarget`) and the record hashes, which described the old files, are
+    /// dropped. Returns the items to review and moves to the first pending step.
     @discardableResult
     public mutating func replaceProposal(_ p: MeetingProposal) -> [UUID] {
         var decisions: [UUID: OKItemDecision] = [:]
@@ -254,20 +264,29 @@ public struct OKApprovalSession: Equatable, Sendable {
             decisions[item.id] = progress.decisions[old.id]
             edits[item.id] = progress.edits[old.id]
         }
+        let oldPaths = proposal.paths
+        let shownPaths = recordPaths(timeZone)
+        let shownProject = recordProject
         proposal = p
         progress.generation = p.generation
         progress.decisions = decisions
         progress.edits = edits
+        if p.paths != oldPaths, p.fixedPaths == nil {
+            proposal.existingRecordHash = nil
+            proposal.existingTranscriptHash = nil
+            proposal.existingRecordContent = nil
+        }
+        if recordPaths(timeZone) != shownPaths || recordProject != shownProject {
+            retarget(from: shownPaths, project: shownProject)
+        }
         moveToFirstPending()
         return p.items.filter { !isDecided($0.id) }.map(\.id)
     }
 
     /// Another meeting took the record's name since the proposal was made:
-    /// moves the record and transcript to the next free name, rewrites each
-    /// item's source link and the transcript link of an edited record, drops
-    /// the decision of every item whose Markdown changed or still cites the
-    /// old record, and moves to the first pending step. `true` → the caller
-    /// shows a notice and doesn't write. Never moves `fixedPaths`.
+    /// moves the record and transcript to the next free name and retargets
+    /// the edits and decisions (see `retarget`). `true` → the caller shows a
+    /// notice and doesn't write. Never moves `fixedPaths`.
     @discardableResult
     public mutating func relocateIfTaken(vault: URL, fileManager: FileManager = .default) -> Bool {
         guard proposal.fixedPaths == nil, let old = proposal.paths, let project = proposal.project else { return false }
@@ -281,29 +300,13 @@ public struct OKApprovalSession: Equatable, Sendable {
                                            vault: vault, timeZone: timeZone, fileManager: fileManager)
         guard new != old else { return false }
 
-        let oldName = (old.record as NSString).lastPathComponent
         proposal.paths = new
-        proposal.existingRecordHash = Self.hash(of: new.record, in: vault)
+        // `available` only returns a taken name when it holds this meeting.
+        let ownRecord = try? Data(contentsOf: vault.appendingPathComponent(new.record))
+        proposal.existingRecordHash = ownRecord.map(OKPath.contentHash)
+        proposal.existingRecordContent = ownRecord.map { String(decoding: $0, as: UTF8.self) }
         proposal.existingTranscriptHash = Self.hash(of: new.transcript, in: vault)
-        for i in proposal.items.indices {
-            let item = proposal.items[i]
-            let from = OKPath.relativeLink(from: item.path, to: old.record)
-            let to = OKPath.relativeLink(from: item.path, to: new.record)
-            // A doc that already cited the other meeting there is left for the user.
-            let citesOther = item.baseContent?.contains(from) == true
-            func rewrite(_ md: String) -> String {
-                citesOther ? md : md.replacingOccurrences(of: "](\(from))", with: "](\(to))")
-            }
-            let shown = markdown(for: .item(item.id))
-            proposal.items[i].markdown = rewrite(item.markdown)
-            if let edit = progress.edits[item.id] { progress.edits[item.id] = rewrite(edit) }
-            let after = markdown(for: .item(item.id))
-            if after != shown || after.contains(oldName) { progress.decisions[item.id] = nil }
-        }
-        if let edit = progress.recordEdit {
-            progress.recordEdit = edit.replacingOccurrences(of: OKPath.relativeLink(from: old.record, to: old.transcript),
-                                                            with: OKPath.relativeLink(from: new.record, to: new.transcript))
-        }
+        retarget(from: old, project: project)
         moveToFirstPending()
         return true
     }
@@ -320,9 +323,6 @@ public struct OKApprovalSession: Equatable, Sendable {
         for id in ids { progress.decisions[id] = nil }
         if recordConflict {
             progress.recordApproval = nil
-            if let record = conflicts.first(where: { $0.itemID == nil && $0.path == proposal.paths?.record }) {
-                recordCurrentContent = record.currentContent
-            }
             move(to: .record)
         } else if let first = proposal.items.first(where: { ids.contains($0.id) }) {
             move(to: .item(first.id))
@@ -400,6 +400,52 @@ public struct OKApprovalSession: Equatable, Sendable {
     }
 
     // MARK: - Helpers
+
+    /// The record moved from `old` in `oldProject` to the current paths and
+    /// project. Rewrites each item's source link to the record (generated
+    /// and edited), unless the doc it updates already cited that path (a
+    /// legitimate reference to the other meeting, left to the user), and
+    /// drops the decision of every item whose Markdown changed or still
+    /// cites the old record. In an edited record it rewrites the transcript
+    /// link and, for a new project, the `project` and default `tags`. The
+    /// record's approval is dropped: its destination changed.
+    private mutating func retarget(from old: OKMeetingPaths, project oldProject: String) {
+        let new = recordPaths(timeZone)
+        let project = recordProject
+        let oldName = (old.record as NSString).lastPathComponent
+        let renamed = oldName != (new.record as NSString).lastPathComponent
+        for i in proposal.items.indices {
+            let item = proposal.items[i]
+            let from = OKPath.relativeLink(from: item.path, to: old.record)
+            let to = OKPath.relativeLink(from: item.path, to: new.record)
+            guard from != to else { continue }
+            let citesOther = item.baseContent?.contains(from) == true
+            func rewrite(_ md: String) -> String {
+                citesOther ? md : md.replacingOccurrences(of: "](\(from))", with: "](\(to))")
+            }
+            let shown = markdown(for: .item(item.id))
+            proposal.items[i].markdown = rewrite(item.markdown)
+            if let edit = progress.edits[item.id] { progress.edits[item.id] = rewrite(edit) }
+            let after = markdown(for: .item(item.id))
+            if after != shown || after.contains("](\(from))") || (renamed && after.contains(oldName)) {
+                progress.decisions[item.id] = nil
+            }
+        }
+        if var edit = progress.recordEdit {
+            edit = edit.replacingOccurrences(of: OKPath.relativeLink(from: old.record, to: old.transcript),
+                                             with: OKPath.relativeLink(from: new.record, to: new.transcript))
+            if project != oldProject {
+                if OKFrontmatter.scalar("project", in: edit) == oldProject {
+                    edit = OKFrontmatter.setting("project", to: project, in: edit)
+                }
+                if OKFrontmatter.scalar("tags", in: edit) == "[reuniao, \(oldProject)]" {
+                    edit = OKFrontmatter.setting("tags", to: "[reuniao, \(project)]", in: edit)
+                }
+            }
+            progress.recordEdit = edit
+        }
+        progress.recordApproval = nil
+    }
 
     mutating func moveToFirstPending() {
         progress.stepIndex = steps.firstIndex { step in
@@ -479,6 +525,7 @@ extension MeetingProposal {
                 recordWritten = false
                 if conflict.path == paths.record {
                     existingRecordHash = conflict.currentHash
+                    existingRecordContent = conflict.currentContent
                 } else {
                     existingTranscriptHash = conflict.currentHash
                 }

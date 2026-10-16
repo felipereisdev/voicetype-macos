@@ -40,6 +40,7 @@ public enum OKApprovalFinalizer {
                 p.recordWritten = true
                 p.existingRecordHash = OKApprovalSession.hash(of: receipt.paths.record, in: vault)
                 p.existingTranscriptHash = OKApprovalSession.hash(of: receipt.paths.transcript, in: vault)
+                p.existingRecordContent = nil
                 let ids = Set(conflicts.compactMap(\.itemID))
                 p.items = p.items.filter { ids.contains($0.id) }
                 let recordConflict = p.absorb(conflicts)

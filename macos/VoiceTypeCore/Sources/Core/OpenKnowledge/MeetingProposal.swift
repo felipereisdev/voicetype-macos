@@ -26,6 +26,9 @@ public struct MeetingProposal: Codable, Equatable, Sendable {
     public var fixedPaths: OKMeetingPaths?
     public var existingRecordHash: String?
     public var existingTranscriptHash: String?
+    /// The record a conflict found in the vault (`existingRecordHash` is its
+    /// hash): what the record's diff is shown against until it's replaced.
+    public var existingRecordContent: String?
     public var catalogFingerprint: String?
     public var distilledAt: Date?
     public var items: [OKProposedItem]
@@ -35,7 +38,7 @@ public struct MeetingProposal: Codable, Equatable, Sendable {
         vault: OKVaultIdentity? = nil, summaryFailure: String? = nil, distillationError: String? = nil,
         suggestedProject: String? = nil, project: String? = nil, paths: OKMeetingPaths? = nil,
         fixedPaths: OKMeetingPaths? = nil, existingRecordHash: String? = nil, existingTranscriptHash: String? = nil,
-        catalogFingerprint: String? = nil, distilledAt: Date? = nil, items: [OKProposedItem] = []
+        existingRecordContent: String? = nil, catalogFingerprint: String? = nil, distilledAt: Date? = nil, items: [OKProposedItem] = []
     ) {
         self.generation = generation
         self.recordWritten = recordWritten
@@ -50,6 +53,7 @@ public struct MeetingProposal: Codable, Equatable, Sendable {
         self.fixedPaths = fixedPaths
         self.existingRecordHash = existingRecordHash
         self.existingTranscriptHash = existingTranscriptHash
+        self.existingRecordContent = existingRecordContent
         self.catalogFingerprint = catalogFingerprint
         self.distilledAt = distilledAt
         self.items = items

@@ -225,8 +225,11 @@ struct OKApprovalFinalizerTests {
         let p = try #require(MeetingProposalStore.load(m.dir))
         #expect(!p.recordWritten)
         #expect(p.existingRecordHash == "ho")
+        #expect(p.existingRecordContent == "outro")
         #expect(p.items.isEmpty)
         let session = OKApprovalSession(proposal: p, progress: OKApprovalProgress.load(m.dir), timeZone: utc)
         #expect(session.current == .record)
+        #expect(session.previousMarkdown(for: .record) == "outro")
+        #expect(!session.recordApproved)
     }
 }

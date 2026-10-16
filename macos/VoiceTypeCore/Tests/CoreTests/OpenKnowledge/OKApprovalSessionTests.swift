@@ -502,7 +502,169 @@ struct OKApprovalSessionTests {
         #expect(locked.paths == paths)
     }
 
+    @Test func relocateKeepsCitationsOfTheOtherMeeting() throws {
+        let vault = try makeVault()
+        defer { try? fm.removeItem(at: vault) }
+        let first = proposal(vault: vault, title: "Daily", withItems: false)
+        let paths = try #require(first.paths)
+        try put(OKMeetingRenderer.renderRecord(first.note, project: "p5", paths: paths, timeZone: utc), paths.record, in: vault)
+
+        var p = proposal(vault: vault, title: "Daily")
+        // The gotcha already cited the first Daily before this meeting.
+        let base = "old\n\n## Fontes\n\n- [Daily](../reunioes/2026-10-16-daily.md)\n"
+        p.items[1].baseContent = base
+        p.items[1].baseHash = h(base)
+        p.items[1].markdown = base + "- [Daily de novo](../reunioes/2026-10-16-daily.md)\n"
+        var s = session(p)
+        s.approve()
+        s.approve()
+        s.approve()
+        s.approve()
+
+        let moved = s.relocateIfTaken(vault: vault)
+        #expect(moved)
+        #expect(s.markdown(for: .item(item2ID)) == p.items[1].markdown)
+        #expect(s.progress.decisions[item2ID] == nil)
+        #expect(s.markdown(for: .item(item1ID)).contains("](../reunioes/2026-10-16-daily-2.md)"))
+    }
+
     // MARK: - Redistillation
+
+    @Test func redistillToAFreeNameRetargetsCarriedEdits() async throws {
+        let vault = try makeVault()
+        defer { try? fm.removeItem(at: vault) }
+        var p = proposal(vault: vault, title: "Daily")
+        p.items = [p.items[0]]
+        var s = session(p)
+        s.approve()
+        s.edit(s.markdown(for: .record) + "\nObs. do usuário.\n")
+        #expect(s.markdown(for: .record).contains("transcricoes/2026-10-16-daily.md"))
+        s.approve()
+        s.edit(s.markdown(for: .item(item1ID)) + "\nNota do usuário.\n")
+        s.approve()
+        #expect(s.canCommit)
+
+        // The first Daily is written, and the catalog changed: redistilling
+        // moves this meeting to the next free name.
+        let first = proposal(vault: vault, title: "Daily", withItems: false)
+        try put(OKMeetingRenderer.renderRecord(first.note, project: "p5", paths: try #require(first.paths), timeZone: utc),
+                "p5/reunioes/2026-10-16-daily.md", in: vault)
+        try put("---\ntitle: Outro\n---\n", "p5/decisoes/outro.md", in: vault)
+        let fake = FakeAssistant(plan: [OKPlannedItem(action: .new, type: .decisao, path: "p5/decisoes/usar-fila.md", title: "Usar fila", reason: "r")])
+        let q = try await OKProposalBuilder(assistant: fake, user: "Mac", timeZone: utc).redistill(s.proposal, project: "p5", vault: vault, now: date)
+        #expect(q.paths?.record == "p5/reunioes/2026-10-16-daily-2.md")
+
+        let pending = s.replaceProposal(q)
+        let adr = q.items[0].id
+        #expect(pending == [adr])
+        let record = s.markdown(for: .record)
+        #expect(record.contains("transcricoes/2026-10-16-daily-2.md"))
+        #expect(!record.contains("2026-10-16-daily.md"))
+        #expect(record.contains("Obs. do usuário."))
+        #expect(!s.recordApproved)
+        let edited = s.markdown(for: .item(adr))
+        #expect(edited.contains("](../reunioes/2026-10-16-daily-2.md)"))
+        #expect(!edited.contains("2026-10-16-daily.md"))
+        #expect(edited.contains("Nota do usuário."))
+        #expect(!s.isApproved(adr))
+        #expect(s.current == .record)
+        let moved = s.relocateIfTaken(vault: vault)
+        #expect(!moved)
+
+        s.approve()
+        s.approve()
+        let ops = try s.commitOps(vault: vault, now: date)
+        #expect(!ops.contains { $0.path.hasSuffix("2026-10-16-daily.md") })
+        guard let recordOp = ops.first(where: { $0.path == "p5/reunioes/2026-10-16-daily-2.md" }), case let .create(_, content, nil) = recordOp else {
+            Issue.record("ops: \(ops)")
+            return
+        }
+        #expect(!content.contains("2026-10-16-daily.md"))
+        #expect(ops.contains(.create(path: "p5/decisoes/usar-fila.md", content: edited, itemID: adr)))
+    }
+
+    @Test func projectChangeRetargetsEditedRecord() throws {
+        let vault = try makeVault()
+        defer { try? fm.removeItem(at: vault) }
+        var s = session(proposal(vault: vault, withItems: false))
+        s.approve()
+        s.edit(s.markdown(for: .record) + "\nObs. do usuário.\n")
+        s.approve()
+        #expect(s.canCommit)
+
+        try s.chooseProject("acme")
+        #expect(!s.canCommit)
+        s.replaceProposal(OKProposalBuilder.repath(s.proposal, project: "acme", vault: vault, timeZone: utc))
+        #expect(!s.needsRedistill)
+        let record = s.markdown(for: .record)
+        #expect(OKFrontmatter.scalar("project", in: record) == "acme")
+        #expect(OKFrontmatter.scalar("tags", in: record) == "[reuniao, acme]")
+        #expect(record.contains("Obs. do usuário."))
+        #expect(!s.recordApproved)
+        #expect(s.current == .record)
+
+        s.approve()
+        let ops = try s.commitOps(vault: vault, now: date)
+        let paths = try #require(s.paths)
+        #expect(paths.record.hasPrefix("acme/reunioes/"))
+        guard let recordOp = ops.first(where: { $0.path == paths.record }), case let .create(_, content, nil) = recordOp else {
+            Issue.record("ops: \(ops)")
+            return
+        }
+        #expect(content.contains("project: acme"))
+        #expect(!content.contains("p5"))
+    }
+
+    @Test func recordApprovalIsBoundToVaultVersions() {
+        let p = proposal(vault: nil, withItems: false)
+        var s = session(p)
+        s.approve()
+        s.approve()
+        #expect(s.recordApproved)
+
+        var q = p
+        q.existingTranscriptHash = "outra"
+        s.replaceProposal(q)
+        #expect(s.markdown(for: .record) == session(p).markdown(for: .record))
+        #expect(!s.recordApproved)
+        #expect(s.current == .record)
+    }
+
+    @Test func recordConflictSurvivesSaveAndReopen() throws {
+        let vault = try makeVault()
+        let dir = try makeTemp()
+        defer {
+            try? fm.removeItem(at: vault)
+            try? fm.removeItem(at: dir)
+        }
+        let p = proposal(vault: vault, withItems: false)
+        try seed(p, in: dir)
+        var s = session(p)
+        s.approve()
+        s.approve()
+        let paths = try #require(s.paths)
+        s.applyConflicts([OKConflict(itemID: nil, path: paths.record, currentContent: "outro", currentHash: h("outro"))])
+        try MeetingProposalStore.save(s.proposal, in: dir)
+        try s.progress.save(in: dir)
+
+        var reopened = session(try #require(MeetingProposalStore.load(dir)), progress: OKApprovalProgress.load(dir))
+        #expect(reopened.previousMarkdown(for: .record) == "outro")
+        #expect(!reopened.recordApproved)
+        #expect(reopened.current == .record)
+        reopened.approve()
+        #expect(reopened.recordApproved)
+        let ops = try reopened.commitOps(vault: vault, now: date)
+        guard let recordOp = ops.first(where: { $0.path == paths.record }), case .update(_, _, h("outro"), nil) = recordOp else {
+            Issue.record("ops: \(ops)")
+            return
+        }
+
+        // The record changed again: the approval no longer holds.
+        reopened.applyConflicts([OKConflict(itemID: nil, path: paths.record, currentContent: "terceiro", currentHash: h("terceiro"))])
+        #expect(reopened.previousMarkdown(for: .record) == "terceiro")
+        #expect(!reopened.recordApproved)
+    }
+
 
     @Test func replaceProposalKeepsDecisionsOfUnchangedItems() {
         let p = proposal(vault: nil)
