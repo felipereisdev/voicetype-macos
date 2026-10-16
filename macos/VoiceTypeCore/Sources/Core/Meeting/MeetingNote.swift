@@ -272,7 +272,7 @@ public enum MeetingNoteWriter {
     }
 
     /// True when the file's frontmatter carries `id: <id>`. Reads only the head.
-    private static func belongs(_ url: URL, to id: UUID) -> Bool {
+    static func belongs(_ url: URL, to id: UUID) -> Bool {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
         defer { try? handle.close() }
         guard let head = try? handle.read(upToCount: 512), let text = String(data: head, encoding: .utf8) else { return false }
