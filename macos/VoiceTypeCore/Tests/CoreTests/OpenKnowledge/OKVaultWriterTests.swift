@@ -1060,6 +1060,209 @@ struct OKVaultWriterTests {
         #expect(saved.dependencies.map(\.path) == [m.paths.record, m.paths.transcript, m.adr2Path])
     }
 
+    // MARK: Interrupted cleanup and late changes
+
+    /// update b.md ("A\n" → "B\n"), create c.md.
+    private let updateThenCreate: [OKVaultOp] = [
+        .update(path: "b.md", content: "B\n", expectedHash: h("A\n"), itemID: nil),
+        .create(path: "c.md", content: "NC\n", itemID: nil),
+    ]
+
+    @Test func crashDuringRollbackCleanupOnlyResumesCleanup() throws {
+        // The rollback undid the update (pre-0 == N); each staging file deleted
+        // before the crash is evidence the next recover must not need.
+        for name in ["pre-0", "copy-0", "tmp-1", "copy-1"] {
+            let vault = try makeVault(["b.md": "A\n"])
+            let original = snapshot(vault)
+            let journal = newJournal()
+            var writer = try makeWriter(vault, journal)
+            writer.fault = { if $0 == .afterApply(0) { throw OKSimulatedCrash() } }
+            #expect(throws: OKSimulatedCrash.self) { try writer.commit(updateThenCreate, receipt: try receipt(vault), precondition: { true }) }
+
+            #expect(throws: OKSimulatedCrash.self) {
+                try OKVaultWriter.recover(journalDirectory: journal, fault: { if $0 == .cleanupBeforeDelete(name) { throw OKSimulatedCrash() } })
+            }
+            #expect(try phase(journal) == .rolledBack, "crash antes de apagar \(name)")
+            #expect(snapshot(vault) == original, "crash antes de apagar \(name)")
+
+            #expect(try OKVaultWriter.recover(journalDirectory: journal) == .rolledBack(conflicts: [], divergences: []), "crash antes de apagar \(name)")
+            #expect(snapshot(vault) == original, "crash antes de apagar \(name)")
+            #expect(stagingEntries(vault).isEmpty)
+            #expect(try phase(journal) == nil)
+            #expect(try OKVaultWriter.recover(journalDirectory: journal) == .nothing)
+        }
+    }
+
+    @Test func rollbackConflictsSurviveInterruptedCleanup() throws {
+        let vault = try makeVault(["b.md": "A\n"])
+        let journal = newJournal()
+        var writer = try makeWriter(vault, journal)
+        writer.fault = { point in
+            switch point {
+            case .beforeApply(1): try put(vault, "b.md", "C\n")
+            case .afterSwap(1): throw OKSimulatedCrash()
+            default: break
+            }
+        }
+        let item = UUID()
+        #expect(throws: OKSimulatedCrash.self) {
+            try writer.commit([
+                .create(path: "a.md", content: "NA\n", itemID: nil),
+                .update(path: "b.md", content: "B\n", expectedHash: h("A\n"), itemID: item),
+            ], receipt: try receipt(vault), precondition: { true })
+        }
+        // removed-0 is already gone when the crash hits copy-0.
+        #expect(throws: OKSimulatedCrash.self) {
+            try OKVaultWriter.recover(journalDirectory: journal, fault: { if $0 == .cleanupBeforeDelete("copy-0") { throw OKSimulatedCrash() } })
+        }
+        #expect(try phase(journal) == .rolledBack)
+
+        let conflict = OKConflict(itemID: item, path: "b.md", currentContent: "C\n", currentHash: h("C\n"))
+        #expect(try OKVaultWriter.recover(journalDirectory: journal) == .rolledBack(conflicts: [conflict], divergences: []))
+        #expect(text(vault, "b.md") == "C\n")
+        #expect(text(vault, "a.md") == nil)
+        #expect(try OKVaultWriter.recover(journalDirectory: journal) == .nothing)
+    }
+
+    @Test func ioErrorDuringRollbackCleanupKeepsJournalForRecover() throws {
+        let vault = try makeVault(["b.md": "A\n"])
+        let original = snapshot(vault)
+        let journal = newJournal()
+        var writer = try makeWriter(vault, journal)
+        writer.fault = { if $0 == .afterApply(0) { throw OKSimulatedCrash() } }
+        #expect(throws: OKSimulatedCrash.self) { try writer.commit(updateThenCreate, receipt: try receipt(vault), precondition: { true }) }
+
+        #expect(throws: Boom.self) {
+            try OKVaultWriter.recover(journalDirectory: journal, fault: { if $0 == .cleanupBeforeDelete("copy-0") { throw Boom() } })
+        }
+        #expect(try phase(journal) == .rolledBack)
+        #expect(try OKVaultWriter.recover(journalDirectory: journal) == .rolledBack(conflicts: [], divergences: []))
+        #expect(snapshot(vault) == original)
+        #expect(stagingEntries(vault).isEmpty)
+        #expect(try phase(journal) == nil)
+    }
+
+    @Test func interruptedCancellationNeverAppliesAnything() throws {
+        for name in ["tmp-0", "copy-0", "tmp-1", "copy-1"] {
+            let vault = try makeVault(["b.md": "A\n"])
+            let original = snapshot(vault)
+            let journal = newJournal()
+            var writer = try makeWriter(vault, journal)
+            writer.fault = { if $0 == .cleanupBeforeDelete(name) { throw OKSimulatedCrash() } }
+            #expect(throws: OKSimulatedCrash.self) { try writer.commit(updateThenCreate, receipt: try receipt(vault), precondition: { false }) }
+            #expect(try phase(journal) == .rolledBack, "crash antes de apagar \(name)")
+
+            #expect(try OKVaultWriter.recover(journalDirectory: journal) == .rolledBack(conflicts: [], divergences: []), "crash antes de apagar \(name)")
+            #expect(snapshot(vault) == original, "crash antes de apagar \(name)")
+            #expect(stagingEntries(vault).isEmpty)
+            #expect(try phase(journal) == nil)
+        }
+
+        // An ordinary error in the cleanup: still preconditionFailed, the journal finishes it later.
+        let vault = try makeVault(["b.md": "A\n"])
+        let original = snapshot(vault)
+        let journal = newJournal()
+        var writer = try makeWriter(vault, journal)
+        writer.fault = { if $0 == .cleanupBeforeDelete("copy-0") { throw Boom() } }
+        #expect(try writer.commit(updateThenCreate, receipt: try receipt(vault), precondition: { false }) == .preconditionFailed)
+        #expect(try phase(journal) == .rolledBack)
+        #expect(try OKVaultWriter.recover(journalDirectory: journal) == .rolledBack(conflicts: [], divergences: []))
+        #expect(snapshot(vault) == original)
+        #expect(stagingEntries(vault).isEmpty)
+    }
+
+    @Test func earlierOpChangedDuringLaterForwardStepIsReconciled() throws {
+        // As restoreAfterDeletedAfterUndoIsInPlace; then, while the completion is
+        // on the last op, E comes back to the ADR and the transcript is deleted.
+        let m = MeetingFixture()
+        let n = m.knowledge(m.adrPath, base: "A\n")
+        let externalRecord = MeetingFixture.edited(m.record(linking: [m.adrPath]))
+        let ops = updateADROps(m) + [.create(path: "p5/c.md", content: "NC\n", itemID: nil)]
+        let vault = try makeVault([m.indexPath: m.indexOld, m.adrPath: "A\n"])
+        let journal = newJournal()
+        var writer = try makeWriter(vault, journal)
+        writer.fault = { if $0 == .afterApply(2) { throw OKSimulatedCrash() } }
+        #expect(throws: OKSimulatedCrash.self) {
+            try writer.commit(ops, receipt: try receipt(vault, paths: m.paths), precondition: { true })
+        }
+        #expect(throws: OKSimulatedCrash.self) {
+            try OKVaultWriter.recover(journalDirectory: journal, fault: { point in
+                if point == .afterRollback(2) {
+                    try put(vault, m.paths.record, externalRecord)
+                    try del(vault, m.adrPath)
+                    throw OKSimulatedCrash()
+                }
+            })
+        }
+
+        let outcome = try OKVaultWriter.recover(journalDirectory: journal, fault: { point in
+            if point == .forwardBeforeApply(3) {
+                try put(vault, m.adrPath, "A\n")
+                try del(vault, m.paths.transcript)
+            }
+        })
+        #expect(receiptOf(outcome)?.written == ops.map(\.path))
+        #expect(text(vault, m.adrPath) == n)
+        #expect(staged(vault, "pre-2") == "A\n")
+        #expect(text(vault, m.paths.transcript) == m.transcript)
+        #expect(text(vault, m.paths.record) == externalRecord)
+        #expect(text(vault, "p5/c.md") == "NC\n")
+        #expect(brokenRelativeLinks(vault) == [])
+    }
+
+    @Test func earlierOpDeletedDuringDependencyRestoreIsRestored() throws {
+        let m = MeetingFixture()
+        let record = m.record(linking: [m.adrPath, m.adr2Path])
+        let files = [
+            m.indexPath: m.indexOld, m.paths.record: record, m.paths.transcript: m.transcript,
+            m.adrPath: "A1\n", m.adr2Path: "A2\n",
+        ]
+        let deps = [m.paths.record, m.paths.transcript]
+        let n1 = m.knowledge(m.adrPath, base: "A1\n")
+        let n2 = m.knowledge(m.adr2Path, base: "A2\n")
+        let ops: [OKVaultOp] = [
+            .update(path: m.adrPath, content: n1, expectedHash: h("A1\n"), itemID: nil),
+            .update(path: m.adr2Path, content: n2, expectedHash: h("A2\n"), itemID: nil),
+        ]
+        /// ADR1 edited after ours (completion), the record deleted, and ADR2
+        /// (already verified) deleted while the record is being restored.
+        func hooks(_ vault: URL, failADR2Restore: Bool) -> @Sendable (OKFaultPoint) throws -> Void {
+            { point in
+                switch point {
+                case .afterApply(0): try put(vault, m.adrPath, MeetingFixture.edited(n1))
+                case .beforeApply(1):
+                    try del(vault, m.paths.record)
+                    throw Boom()
+                case .forwardBeforeRestoreDependency(0): try? del(vault, m.adr2Path)
+                case .forwardBeforeRestore(1): if failADR2Restore { throw Boom() }
+                default: break
+                }
+            }
+        }
+
+        var vault = try makeVault(files)
+        var writer = try makeWriter(vault, newJournal())
+        writer.fault = hooks(vault, failADR2Restore: false)
+        let result = try writer.commit(ops, dependencies: deps, receipt: try receipt(vault, paths: m.paths), precondition: { true })
+        #expect(receiptOf(result)?.written == [m.adrPath, m.adr2Path])
+        #expect(text(vault, m.adr2Path) == n2)
+        #expect(text(vault, m.paths.record) == record)
+        #expect(brokenRelativeLinks(vault) == [])
+
+        // ADR2 can't be put back: never a receipt that lists it.
+        vault = try makeVault(files)
+        let journal = newJournal()
+        writer = try makeWriter(vault, journal)
+        writer.fault = hooks(vault, failADR2Restore: true)
+        #expect(throws: OKVaultWriter.WriteError.incomplete([m.adr2Path])) {
+            try writer.commit(ops, dependencies: deps, receipt: try receipt(vault, paths: m.paths), precondition: { true })
+        }
+        #expect(try phase(journal) == .rollingForward)
+        #expect(receiptOf(try OKVaultWriter.recover(journalDirectory: journal))?.written == [m.adrPath, m.adr2Path])
+        #expect(text(vault, m.adr2Path) == n2)
+        #expect(brokenRelativeLinks(vault) == [])
+    }
+
     // MARK: Finish and vault binding
 
     @Test func finishKeepsForeignArtifacts() throws {

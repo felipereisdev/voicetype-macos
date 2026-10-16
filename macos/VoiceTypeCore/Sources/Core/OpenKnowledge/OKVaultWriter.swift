@@ -82,11 +82,13 @@ public enum OKRecoveryOutcome: Equatable, Sendable {
 }
 
 /// Where the test hook runs. Indices are positions in the `ops` passed to
-/// `commit` (dependencies for `forwardBeforeRestoreDependency`).
+/// `commit` (dependencies for `forwardBeforeRestoreDependency`);
+/// `cleanupBeforeDelete` carries the staging file name (`pre-0`, `copy-1`…).
 public enum OKFaultPoint: Equatable, Sendable {
     case afterPrepare, beforeApply(Int), afterSwap(Int), afterApply(Int), afterReceipt,
          rollbackBeforeUndo(Int), rollbackAfterUndo(Int), afterRollback(Int),
-         forwardBeforeApply(Int), forwardBeforeRestore(Int), forwardBeforeRestoreDependency(Int)
+         forwardBeforeApply(Int), forwardBeforeRestore(Int), forwardBeforeRestoreDependency(Int),
+         cleanupBeforeDelete(String)
 }
 
 /// Thrown by a test hook to simulate the process dying: the writer leaves
@@ -237,7 +239,7 @@ public struct OKVaultWriter: Sendable {
         do {
             try tx.saveJournal()
         } catch {
-            tx.discard()
+            try tx.discard()
             throw error
         }
         try tx.runFault(.afterPrepare)
@@ -246,11 +248,11 @@ public struct OKVaultWriter: Sendable {
         do {
             proceed = try precondition()
         } catch {
-            tx.discard()
+            try tx.discard()
             throw error
         }
         guard proceed else {
-            tx.discard()
+            try tx.discard()
             return .preconditionFailed
         }
 
@@ -314,6 +316,8 @@ public struct OKVaultWriter: Sendable {
             return .committed(journal.receipt)
         case .rolledBackWithDivergences:
             return .rolledBack(conflicts: [], divergences: journal.divergences ?? [])
+        case .rolledBack:
+            outcome = try tx.finishRollback()
         case .rollingForward:
             outcome = try tx.rollForward()
         case .prepared:
@@ -423,7 +427,10 @@ extension OKVaultWriter {
     /// The durable intent, in `<meeting dir>/ok-commit/journal.json` (outside
     /// the vault). Staging file names are relative to `staging`.
     struct Journal: Codable, Equatable {
-        enum Phase: String, Codable { case prepared, committed, rollingBack, rollingForward, rolledBackWithDivergences }
+        /// `rolledBack`: the rollback (or a cancellation before any rename)
+        /// is over and recorded with its conflicts and divergences; only the
+        /// staging cleanup remains, and recovering it never touches the vault.
+        enum Phase: String, Codable { case prepared, committed, rollingBack, rollingForward, rolledBack, rolledBackWithDivergences }
         enum Kind: String, Codable { case create, update }
 
         struct Op: Codable, Equatable {
@@ -558,10 +565,20 @@ final class OKVaultTransaction {
         rmdir(journalDirectory.path)
     }
 
-    /// Nothing was renamed yet: drops staging and journal.
-    func discard() {
-        try? fm.removeItem(at: staging)
-        try? removeJournal()
+    /// Nothing was renamed yet: records the cancellation as `rolledBack`
+    /// before deleting anything, then cleans up. Only a simulated crash is
+    /// rethrown; after any other failure the journal is left for `recover`.
+    func discard() throws {
+        guard fm.fileExists(atPath: journalDirectory.appendingPathComponent(MeetingProposalStore.journalFileName).path) else {
+            try? fm.removeItem(at: staging)
+            return
+        }
+        do {
+            try markRolledBack(conflicts: [])
+            _ = try finishRollback()
+        } catch let crash as OKSimulatedCrash {
+            throw crash
+        } catch {}
     }
 
     // MARK: Evidence
@@ -763,9 +780,6 @@ final class OKVaultTransaction {
         }
         if try anyIrreversible() { return try rollForward() }
 
-        for dir in Set(journal.ops.flatMap(\.createdDirs)).sorted(by: { $0.count > $1.count }) {
-            rmdir(root.appendingPathComponent(dir).path)
-        }
         // Whatever no longer matches its state before the transaction.
         var conflicts: [OKConflict] = []
         for op in journal.ops {
@@ -774,15 +788,41 @@ final class OKVaultTransaction {
                 conflicts.append(OKVaultWriter.conflict(itemID: op.itemID, path: op.path, data: current))
             }
         }
-        let divergences = try cleanStaging()
+        try markRolledBack(conflicts: conflicts)
+        return try finishRollback()
+    }
+
+    /// Records the end of the rollback, with what it reports, before the
+    /// cleanup deletes the staging files the classification reads.
+    private func markRolledBack(conflicts: [OKConflict]) throws {
+        let divergences = try foreignStagingFiles()
+        journal.phase = .rolledBack
+        journal.conflicts = conflicts.isEmpty ? nil : conflicts
+        journal.divergences = divergences.isEmpty ? nil : divergences
+        try saveJournal()
+    }
+
+    /// The cleanup of a `rolledBack` journal, idempotent and never touching
+    /// a destination: removes the folders the transaction created that are
+    /// empty, deletes the staging files that are ours or the approved
+    /// original, then drops staging and journal, or keeps them as
+    /// `rolledBackWithDivergences` when an outside version stays.
+    func finishRollback() throws -> Outcome {
+        for dir in Set(journal.ops.flatMap(\.createdDirs)).sorted(by: { $0.count > $1.count }) {
+            rmdir(root.appendingPathComponent(dir).path)
+        }
+        for file in try inventory() {
+            guard let hash = try Self.hash(file.url), file.allowed.contains(hash) else { continue }
+            try runFault(.cleanupBeforeDelete(file.url.lastPathComponent))
+            try fm.removeItem(at: file.url)
+        }
+        let conflicts = journal.conflicts ?? []
+        let divergences = journal.divergences ?? []
         if divergences.isEmpty {
-            try? fm.removeItem(at: staging)
+            if fm.fileExists(atPath: staging.path) { try fm.removeItem(at: staging) }
             try removeJournal()
         } else {
-            journal.phase = .rolledBackWithDivergences
-            journal.conflicts = conflicts.isEmpty ? nil : conflicts
-            journal.divergences = divergences
-            try saveJournal()
+            try setPhase(.rolledBackWithDivergences)
         }
         return .rolledBack(conflicts, divergences)
     }
@@ -872,34 +912,67 @@ final class OKVaultTransaction {
         if try move(scratch, target, RENAME_EXCL) { try sync(target, scratch) }
     }
 
-    /// Final check before any `committed`/`partial`: every destination and
-    /// every dependency exists (restored if not). Anything still missing
-    /// leaves the journal in `rollingForward` and throws `incomplete`.
-    func finishForward(failed: [String]) throws -> Outcome {
-        var absent = failed
-        for op in journal.ops where !failed.contains(op.path) {
-            guard try Self.hash(dst(op)) == nil else { continue }
-            do {
-                try forward(op)
-            } catch let crash as OKSimulatedCrash {
-                throw crash
-            } catch {}
-            if try Self.hash(dst(op)) == nil { absent.append(op.path) }
+    /// A state the completion leaves as it is: our content or a later
+    /// version in place, or an outside version reported as conflict. Not
+    /// applied, undone, missing, inconsistent or still to repair isn't.
+    static func isFinal(_ status: Status, kind: Journal.Kind) -> Bool {
+        switch status.state {
+        case .applied, .identical, .overwrittenAfterPlace, .recreatedAfterRollback, .verified, .inPlace,
+             .overwrittenAfterSwap, .overwrittenAfterUndo, .replayedAfterUndo, .foreign, .revertedByOther, .repairedForeign:
+            status.dst != nil
+        case .capturedForeign:
+            kind == .create && status.dst != nil
+        default:
+            false
         }
-        for (k, dep) in journal.dependencies.enumerated() {
-            let url = root.appendingPathComponent(dep.path)
-            guard try Self.hash(url) == nil else { continue }
-            do {
-                try restoreDependency(k)
-            } catch let crash as OKSimulatedCrash {
-                throw crash
-            } catch {}
-            if try Self.hash(url) == nil { absent.append(dep.path) }
+    }
+
+    /// Final check before any `committed`/`partial`. Brings every op to a
+    /// final state and restores missing dependencies, in passes until one
+    /// changes nothing (a step can disturb a file already checked), then
+    /// revalidates everything without acting. An op not final or a
+    /// dependency missing leaves the journal in `rollingForward` and throws
+    /// `incomplete`. `failed`: ops whose step already failed this round,
+    /// which aren't retried.
+    func finishForward(failed initial: [String]) throws -> Outcome {
+        var failed = initial
+        for _ in 0..<3 {
+            var acted = false
+            for op in journal.ops where !failed.contains(op.path) {
+                if Self.isFinal(try classify(op), kind: op.kind) { continue }
+                acted = true
+                try setPhase(.rollingForward)
+                do {
+                    try forward(op)
+                } catch let crash as OKSimulatedCrash {
+                    throw crash
+                } catch {
+                    failed.append(op.path)
+                }
+            }
+            for (k, dep) in journal.dependencies.enumerated() {
+                if try Self.hash(root.appendingPathComponent(dep.path)) != nil { continue }
+                acted = true
+                try setPhase(.rollingForward)
+                do {
+                    try restoreDependency(k)
+                } catch let crash as OKSimulatedCrash {
+                    throw crash
+                } catch {}
+            }
+            if !acted { break }
+        }
+
+        var absent: [String] = []
+        for op in journal.ops {
+            if try failed.contains(op.path) || !Self.isFinal(classify(op), kind: op.kind) { absent.append(op.path) }
+        }
+        for dep in journal.dependencies {
+            if try Self.hash(root.appendingPathComponent(dep.path)) == nil { absent.append(dep.path) }
         }
         guard absent.isEmpty else {
             try setPhase(.rollingForward)
-            var seen = Set<String>()
-            throw OKVaultWriter.WriteError.incomplete(absent.filter { seen.insert($0).inserted })
+            throw OKVaultWriter.WriteError.incomplete(absent)
         }
 
         var conflicts: [OKConflict] = []
@@ -908,7 +981,7 @@ final class OKVaultTransaction {
             let status = try classify(op)
             let isConflict: Bool
             switch status.state {
-            case .foreign, .revertedByOther, .repairedForeign, .swappedOverForeign: isConflict = true
+            case .foreign, .revertedByOther, .repairedForeign: isConflict = true
             case .overwrittenAfterSwap: isConflict = status.artifactHash != op.expectedHash
             default: isConflict = false
             }
@@ -918,10 +991,7 @@ final class OKVaultTransaction {
                 written.append(op.path)
             }
         }
-        let divergences = try inventory().compactMap { file -> OKDivergence? in
-            guard let hash = try Self.hash(file.url), !file.allowed.contains(hash) else { return nil }
-            return OKDivergence(path: file.path, preservedCopy: file.url.path, reason: Self.foreignReason)
-        }
+        let divergences = try foreignStagingFiles()
         journal.receipt.written = written
         journal.phase = .committed
         journal.conflicts = conflicts.isEmpty ? nil : conflicts
@@ -958,18 +1028,12 @@ final class OKVaultTransaction {
         return files
     }
 
-    /// Deletes the staging files that are ours or the approved original;
-    /// returns the others (outside versions), which stay.
-    private func cleanStaging() throws -> [OKDivergence] {
-        var divergences: [OKDivergence] = []
-        for file in try inventory() {
-            guard let hash = try Self.hash(file.url) else { continue }
-            if file.allowed.contains(hash) {
-                try fm.removeItem(at: file.url)
-            } else {
-                divergences.append(OKDivergence(path: file.path, preservedCopy: file.url.path, reason: Self.foreignReason))
-            }
+    /// The staging files holding an outside version (neither ours nor the
+    /// approved original), which are never deleted.
+    private func foreignStagingFiles() throws -> [OKDivergence] {
+        try inventory().compactMap { file in
+            guard let hash = try Self.hash(file.url), !file.allowed.contains(hash) else { return nil }
+            return OKDivergence(path: file.path, preservedCopy: file.url.path, reason: Self.foreignReason)
         }
-        return divergences
     }
 }
