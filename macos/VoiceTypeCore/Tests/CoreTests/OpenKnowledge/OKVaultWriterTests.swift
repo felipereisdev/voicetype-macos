@@ -1093,6 +1093,47 @@ struct OKVaultWriterTests {
         }
     }
 
+    @Test func artifactChangedAfterInterruptedCleanupIsPreserved() throws {
+        let vault = try makeVault(["b.md": "A\n"])
+        let original = snapshot(vault)
+        let journal = newJournal()
+        var writer = try makeWriter(vault, journal)
+        writer.fault = { if $0 == .afterApply(0) { throw OKSimulatedCrash() } }
+        #expect(throws: OKSimulatedCrash.self) { try writer.commit(updateThenCreate, receipt: try receipt(vault), precondition: { true }) }
+
+        // An editor opened b.md while our N was in place and keeps the descriptor;
+        // the rollback moves that inode to pre-0.
+        let editor = try FileHandle(forUpdating: vault.appendingPathComponent("b.md"))
+        defer { try? editor.close() }
+        #expect(throws: OKSimulatedCrash.self) {
+            try OKVaultWriter.recover(journalDirectory: journal, fault: { if $0 == .cleanupBeforeDelete("pre-0") { throw OKSimulatedCrash() } })
+        }
+        #expect(try phase(journal) == .rolledBack)
+        #expect(try OKVaultWriter.Journal.load(from: journal)?.divergences == nil)
+        try editor.truncate(atOffset: 0)
+        try editor.write(contentsOf: Data("X\n".utf8))
+        try editor.synchronize()
+        #expect(staged(vault, "pre-0") == "X\n")
+        #expect(text(vault, "b.md") == "A\n")
+
+        let outcome = try OKVaultWriter.recover(journalDirectory: journal)
+        guard case let .rolledBack(conflicts, divergences) = outcome else {
+            Issue.record("esperava .rolledBack, veio \(outcome)")
+            return
+        }
+        #expect(conflicts == [])
+        #expect(divergences.map(\.path) == ["b.md"])
+        #expect(divergences.first?.preservedCopy.flatMap(contents) == "X\n")
+        #expect(try phase(journal) == .rolledBackWithDivergences)
+        #expect(snapshot(vault) == original)
+        #expect(staged(vault, "copy-0") == nil)
+
+        #expect(try OKVaultWriter.recover(journalDirectory: journal) == .rolledBack(conflicts: [], divergences: divergences))
+        #expect(try OKVaultWriter.recover(journalDirectory: journal) == .rolledBack(conflicts: [], divergences: divergences))
+        #expect(divergences.first?.preservedCopy.flatMap(contents) == "X\n")
+        #expect(snapshot(vault) == original)
+    }
+
     @Test func rollbackConflictsSurviveInterruptedCleanup() throws {
         let vault = try makeVault(["b.md": "A\n"])
         let journal = newJournal()

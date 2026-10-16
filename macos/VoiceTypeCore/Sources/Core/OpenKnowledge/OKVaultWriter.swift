@@ -356,7 +356,7 @@ public struct OKVaultWriter: Sendable {
             }
         }
         if !kept.isEmpty { try OKDurableFile.syncDirectory(preserved) }
-        try? fm.removeItem(at: tx.staging)
+        try tx.removeEmptyStaging()
         try tx.removeJournal()
         return kept
     }
@@ -804,27 +804,42 @@ final class OKVaultTransaction {
 
     /// The cleanup of a `rolledBack` journal, idempotent and never touching
     /// a destination: removes the folders the transaction created that are
-    /// empty, deletes the staging files that are ours or the approved
-    /// original, then drops staging and journal, or keeps them as
-    /// `rolledBackWithDivergences` when an outside version stays.
+    /// empty and deletes the staging files that are ours or the approved
+    /// original. Every attempt re-reads the staging: a file that changed
+    /// since the rollback (written through a descriptor someone kept) is an
+    /// outside version, recorded in the journal before going on and never
+    /// deleted. The staging folder is only removed empty; with an outside
+    /// version left, the journal becomes `rolledBackWithDivergences`.
     func finishRollback() throws -> Outcome {
         for dir in Set(journal.ops.flatMap(\.createdDirs)).sorted(by: { $0.count > $1.count }) {
             rmdir(root.appendingPathComponent(dir).path)
         }
+        var divergences = journal.divergences ?? []
         for file in try inventory() {
-            guard let hash = try Self.hash(file.url), file.allowed.contains(hash) else { continue }
-            try runFault(.cleanupBeforeDelete(file.url.lastPathComponent))
-            try fm.removeItem(at: file.url)
+            guard let hash = try Self.hash(file.url) else { continue }
+            if file.allowed.contains(hash) {
+                try runFault(.cleanupBeforeDelete(file.url.lastPathComponent))
+                try fm.removeItem(at: file.url)
+            } else if !divergences.contains(where: { $0.preservedCopy == file.url.path }) {
+                divergences.append(OKDivergence(path: file.path, preservedCopy: file.url.path, reason: Self.foreignReason))
+                journal.divergences = divergences
+                try saveJournal()
+            }
         }
-        let conflicts = journal.conflicts ?? []
-        let divergences = journal.divergences ?? []
         if divergences.isEmpty {
-            if fm.fileExists(atPath: staging.path) { try fm.removeItem(at: staging) }
+            try removeEmptyStaging()
             try removeJournal()
         } else {
             try setPhase(.rolledBackWithDivergences)
         }
-        return .rolledBack(conflicts, divergences)
+        return .rolledBack(journal.conflicts ?? [], divergences)
+    }
+
+    /// `rmdir`, never a recursive delete: a file that showed up in the
+    /// staging after the inventory makes it fail, and the journal stays for
+    /// the next attempt.
+    func removeEmptyStaging() throws {
+        guard rmdir(staging.path) == 0 || errno == ENOENT else { throw OKDurableFile.posixError() }
     }
 
     // MARK: Completion
