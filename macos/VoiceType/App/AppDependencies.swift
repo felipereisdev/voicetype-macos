@@ -75,7 +75,7 @@ final class AppDependencies {
             whisperModels: resolvedWhisperModels,
             editObserver: EditObserver(store: suggestionStore)
         )
-        self.meetingRecorder = MeetingRecorder(configStore: configStore, notifier: resolvedNotifier)
+        self.meetingRecorder = MeetingRecorder(configStore: configStore, notifier: resolvedNotifier, onPendingChanged: {})
         self.meetingDetector = MeetingDetector(recorder: meetingRecorder, config: configSnapshot, notifier: resolvedNotifier)
     }
 }
