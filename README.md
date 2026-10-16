@@ -142,6 +142,116 @@ rm ~/Library/Application\ Support/VoiceType/history.json
 - Apple Silicon apenas.
 - Refino on-device só com Apple Intelligence ativo (idioma do Mac = idioma da Siri); senão usa Groq.
 
+## Arquitetura
+
+Visão geral dos componentes (gerado pelo [GitDiagram](https://gitdiagram.com/maclevison/voicetype-macos)).
+
+```mermaid
+flowchart TD
+
+subgraph group_capture["Capture and controls"]
+  node_shortcut["Shortcut manager"]
+  node_recorder["Recording orchestrator"]
+  node_audio["Audio capture"]
+  node_state["Recording state"]
+  node_hud["Recording HUD"]
+end
+
+subgraph group_dictation["Dictation pipeline"]
+  node_pipeline["Transcribe and transform<br/>[Pipeline.swift]"]
+  node_localasr["Local transcription"]
+  node_whisper["Whisper model manager"]
+  node_localrefine["Local refine and translate<br/>[LocalRefiner.swift]"]
+  node_groqclient["Groq client<br/>[GroqClient.swift]"]
+  node_runusecase["Run pipeline use case"]
+  node_paster["Paste delivery<br/>[Paster.swift]"]
+end
+
+subgraph group_notes["Notes and meetings"]
+  node_voiceidea["Voice idea capture"]
+  node_meeting["Meeting recording"]
+  node_calendar["Calendar matching"]
+  node_diarizer["Speaker diarization"]
+  node_summarizer["Meeting summarizer"]
+end
+
+subgraph group_appdata["App data and UI"]
+  node_history[("History store and view<br/>[HistoryStore.swift]")]
+  node_settings["Settings"]
+  node_config[("Configuration store<br/>[ConfigStore.swift]")]
+end
+
+node_user(("User"))
+node_groq{{"Groq service"}}
+node_focusedapp["Focused app"]
+node_obsidian["Obsidian notes"]
+
+node_user -->|"presses"| node_shortcut
+node_shortcut -.->|"triggers"| node_recorder
+node_recorder -->|"captures audio"| node_audio
+node_recorder -.->|"drives state"| node_state
+node_recorder -->|"updates HUD"| node_hud
+node_recorder -->|"runs"| node_pipeline
+node_pipeline -.->|"transcribes"| node_localasr
+node_localasr -.->|"uses model"| node_whisper
+node_pipeline -.->|"refines or translates"| node_localrefine
+node_pipeline -.->|"fallbacks to"| node_groqclient
+node_groqclient -->|"requests"| node_groq
+node_recorder -.->|"delegates run"| node_runusecase
+node_runusecase -->|"runs"| node_pipeline
+node_runusecase -->|"pastes text"| node_paster
+node_paster -->|"delivers text"| node_focusedapp
+node_runusecase -->|"records entry"| node_history
+node_user -->|"dictates idea"| node_voiceidea
+node_voiceidea -.->|"transcribes"| node_pipeline
+node_voiceidea -->|"writes daily note"| node_obsidian
+node_user -->|"starts recording"| node_meeting
+node_meeting -.->|"separates speakers"| node_diarizer
+node_meeting -.->|"matches event"| node_calendar
+node_meeting -.->|"transcribes locally"| node_pipeline
+node_meeting -.->|"requests summary"| node_summarizer
+node_summarizer -->|"writes notes"| node_obsidian
+node_user -->|"configures"| node_settings
+node_settings -.->|"saves settings"| node_config
+node_shortcut -->|"loads shortcuts"| node_config
+
+classDef toneNeutral fill:#f8fafc,stroke:#334155,stroke-width:1.5px,color:#0f172a
+classDef toneBlue fill:#dbeafe,stroke:#2563eb,stroke-width:1.5px,color:#172554
+classDef toneAmber fill:#fef3c7,stroke:#d97706,stroke-width:1.5px,color:#78350f
+classDef toneMint fill:#dcfce7,stroke:#16a34a,stroke-width:1.5px,color:#14532d
+classDef toneRose fill:#ffe4e6,stroke:#e11d48,stroke-width:1.5px,color:#881337
+classDef toneIndigo fill:#e0e7ff,stroke:#4f46e5,stroke-width:1.5px,color:#312e81
+classDef toneTeal fill:#ccfbf1,stroke:#0f766e,stroke-width:1.5px,color:#134e4a
+class node_shortcut,node_recorder,node_audio,node_state,node_hud,node_user toneBlue
+class node_pipeline,node_localasr,node_whisper,node_localrefine,node_groqclient,node_runusecase,node_paster toneAmber
+class node_voiceidea,node_meeting,node_calendar,node_diarizer,node_summarizer toneMint
+class node_history,node_settings,node_config toneRose
+class node_groq,node_focusedapp,node_obsidian toneIndigo
+```
+
+| Componente | Arquivo |
+|---|---|
+| Shortcut manager | [`ShortcutManager.swift`](macos/VoiceType/Features/Recording/Shortcut/ShortcutManager.swift) |
+| Recording orchestrator | [`RecordingOrchestrator.swift`](macos/VoiceType/App/RecordingOrchestrator.swift) |
+| Audio capture | [`AudioDeviceResolver.swift`](macos/VoiceType/Features/Recording/Audio/AudioDeviceResolver.swift) |
+| Recording state | [`AppStateMachine.swift`](macos/VoiceTypeCore/Sources/Core/StateMachine/AppStateMachine.swift) |
+| Recording HUD | [`HUDController.swift`](macos/VoiceType/Features/Recording/HUD/HUDController.swift) |
+| Transcribe and transform | [`Pipeline.swift`](macos/VoiceTypeCore/Sources/Core/Pipeline/Pipeline.swift) |
+| Local transcription | [`LocalTranscriber.swift`](macos/VoiceType/Features/Recording/Transcription/LocalTranscriber.swift) |
+| Whisper model manager | [`WhisperModelManager.swift`](macos/VoiceType/Features/Recording/Transcription/WhisperModelManager.swift) |
+| Local refine and translate | [`LocalRefiner.swift`](macos/VoiceType/Features/Recording/Refinement/LocalRefiner.swift) |
+| Groq client | [`GroqClient.swift`](macos/VoiceTypeCore/Sources/Core/GroqClient/GroqClient.swift) |
+| Run pipeline use case | [`RunPipelineUseCase.swift`](macos/VoiceTypeCore/Sources/Core/UseCases/RunPipelineUseCase.swift) |
+| Paste delivery | [`Paster.swift`](macos/VoiceType/Features/Recording/Output/Paster.swift) |
+| History store and view | [`HistoryStore.swift`](macos/VoiceTypeCore/Sources/Core/History/HistoryStore.swift) |
+| Settings | [`MainWindowView.swift`](macos/VoiceType/Features/Settings/MainWindowView.swift) |
+| Configuration store | [`ConfigStore.swift`](macos/VoiceTypeCore/Sources/Core/Config/ConfigStore.swift) |
+| Voice idea capture | [`IdeaNote.swift`](macos/VoiceTypeCore/Sources/Core/Meeting/IdeaNote.swift) |
+| Meeting recording | [`MeetingProcessor.swift`](macos/VoiceType/Features/Meeting/MeetingProcessor.swift) |
+| Calendar matching | [`MeetingCalendar.swift`](macos/VoiceType/Features/Meeting/MeetingCalendar.swift) |
+| Speaker diarization | [`MeetingDiarizer.swift`](macos/VoiceType/Features/Meeting/MeetingDiarizer.swift) |
+| Meeting summarizer | [`ClaudeCLISummarizer.swift`](macos/VoiceTypeCore/Sources/Core/Meeting/ClaudeCLISummarizer.swift) |
+
 ## Documentação técnica
 
 - `docs/architecture.md` — componentes, fluxo, permissões, armazenamento.
