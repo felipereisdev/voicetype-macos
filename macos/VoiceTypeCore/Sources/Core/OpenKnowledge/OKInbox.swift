@@ -50,12 +50,24 @@ public enum OKInbox {
         timeZone: TimeZone = .current,
         fileManager: FileManager = .default
     ) throws -> URL {
+        try writeIdea(idea, to: vault, timeZone: timeZone, fileManager: fileManager, beforeRename: nil)
+    }
+
+    /// `beforeRename` sees the staged file right before it is moved in (tests).
+    static func writeIdea(
+        _ idea: IdeaNote,
+        to vault: URL,
+        timeZone: TimeZone = .current,
+        fileManager: FileManager = .default,
+        beforeRename: ((URL) throws -> Void)?
+    ) throws -> URL {
         let dir = vault.appendingPathComponent(folder, isDirectory: true).appendingPathComponent(ideasFolder, isDirectory: true)
         try prepare(dir, in: vault, fileManager: fileManager)
         let slug = OKSlug.make(from: idea.title)
         let base = "\(day(idea.createdAt, timeZone))-\(slug.isEmpty ? "ideia" : slug)"
         let url = OKPath.uniqueDestination(base: base, id: idea.id, in: dir, fileManager: fileManager)
-        try Data(renderIdea(idea, timeZone: timeZone).utf8).write(to: url, options: .atomic)
+        try stagedWrite(Data(renderIdea(idea, timeZone: timeZone).utf8), to: url, vault: vault,
+                        replacing: true, fileManager: fileManager, beforeRename: beforeRename)
         return url
     }
 
@@ -84,6 +96,18 @@ public enum OKInbox {
         timeZone: TimeZone = .current,
         fileManager: FileManager = .default
     ) throws -> URL {
+        try appendToDaily(text, at: date, to: vault, timeZone: timeZone, fileManager: fileManager, beforeRename: nil)
+    }
+
+    /// `beforeRename` sees the staged file right before it is moved in (tests).
+    static func appendToDaily(
+        _ text: String,
+        at date: Date = Date(),
+        to vault: URL,
+        timeZone: TimeZone = .current,
+        fileManager: FileManager = .default,
+        beforeRename: ((URL) throws -> Void)?
+    ) throws -> URL {
         let url = dailyURL(in: vault, for: date, timeZone: timeZone)
         try prepare(url.deletingLastPathComponent(), in: vault, fileManager: fileManager)
         let existing = fileManager.fileExists(atPath: url.path) ? try String(contentsOf: url, encoding: .utf8) : nil
@@ -92,7 +116,7 @@ public enum OKInbox {
             + "description: \(MeetingNoteRenderer.yamlString("Notas de voz de \(day)."))\n"
             + "type: diario\ndate: \(day)\ntags: [diario]\n---\n\n"
         let out = DailyNote.inserting(text, at: date, into: existing, timeZone: timeZone, newFileHeader: header)
-        try Data(out.utf8).write(to: url, options: .atomic)
+        try stagedWrite(Data(out.utf8), to: url, vault: vault, replacing: true, fileManager: fileManager, beforeRename: beforeRename)
         return url
     }
 
@@ -116,23 +140,39 @@ public enum OKInbox {
     }
 
     /// `_inbox/.ok/frontmatter.yml` (the folder's title in OpenKnowledge),
-    /// created when missing and never replaced: staged under
-    /// `.ok/local/voicetype-staging/` and moved in with `RENAME_EXCL`, so a
-    /// file someone else wrote in the meantime wins.
+    /// created when missing and never replaced: moved in with `RENAME_EXCL`,
+    /// so a file someone else wrote in the meantime wins.
     private static func ensureMetadata(in vault: URL, fileManager: FileManager) throws {
         let url = vault.appendingPathComponent(folder, isDirectory: true)
             .appendingPathComponent(".ok", isDirectory: true)
             .appendingPathComponent("frontmatter.yml")
         guard !fileManager.fileExists(atPath: url.path) else { return }
         try fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try stagedWrite(Data(metadata.utf8), to: url, vault: vault, replacing: false, fileManager: fileManager, beforeRename: nil)
+    }
+
+    /// Writes `data` to a uniquely named file under `.ok/local/voicetype-staging/`
+    /// (ignored by OpenKnowledge's git) and renames it onto `url`, so no
+    /// temporary or partial copy ever sits in a content folder, where the OK
+    /// auto-commit would pick it up. `replacing: false` uses `RENAME_EXCL` and
+    /// keeps an existing file. A failure leaves `url` as it was.
+    private static func stagedWrite(
+        _ data: Data,
+        to url: URL,
+        vault: URL,
+        replacing: Bool,
+        fileManager: FileManager,
+        beforeRename: ((URL) throws -> Void)?
+    ) throws {
         let staging = vault.appendingPathComponent(".ok/local/voicetype-staging", isDirectory: true)
         try fileManager.createDirectory(at: staging, withIntermediateDirectories: true)
-        let tmp = staging.appendingPathComponent("inbox-frontmatter-\(UUID().uuidString).yml")
-        try Data(metadata.utf8).write(to: tmp)
+        let tmp = staging.appendingPathComponent("inbox-\(UUID().uuidString).\(url.pathExtension)")
+        try data.write(to: tmp, options: .withoutOverwriting)
         defer { try? fileManager.removeItem(at: tmp) }
-        if renamex_np(tmp.path, url.path, UInt32(RENAME_EXCL)) != 0 {
+        try beforeRename?(tmp)
+        if renamex_np(tmp.path, url.path, replacing ? 0 : UInt32(RENAME_EXCL)) != 0 {
             let code = errno
-            guard code == EEXIST else { throw POSIXError(POSIXErrorCode(rawValue: code) ?? .EIO) }
+            guard !replacing, code == EEXIST else { throw POSIXError(POSIXErrorCode(rawValue: code) ?? .EIO) }
         }
     }
 }

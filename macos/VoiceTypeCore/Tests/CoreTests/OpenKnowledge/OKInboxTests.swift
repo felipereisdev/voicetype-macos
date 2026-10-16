@@ -138,6 +138,65 @@ struct OKInboxTests {
         #expect(try String(contentsOf: meta, encoding: .utf8) == "title: Meu\n")
     }
 
+    private struct Interrupted: Error {}
+
+    /// Regular files the OK auto-commit could see: everything but `.ok/local/`.
+    private func contentFiles(_ vault: URL) -> [String] {
+        let all = FileManager.default.enumerator(atPath: vault.path)?.compactMap { $0 as? String } ?? []
+        return all.filter { rel in
+            var isDirectory: ObjCBool = false
+            FileManager.default.fileExists(atPath: vault.appendingPathComponent(rel).path, isDirectory: &isDirectory)
+            return !isDirectory.boolValue && !rel.hasPrefix(".ok/local/")
+        }.sorted()
+    }
+
+    private func staging(_ vault: URL) -> URL {
+        vault.appendingPathComponent(".ok/local/voicetype-staging", isDirectory: true)
+    }
+
+    @Test func ideaIsStagedOutsideContentFoldersUntilTheRename() throws {
+        let vault = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault) }
+        let rendered = OKInbox.renderIdea(idea(), timeZone: utc)
+        #expect(throws: Interrupted.self) {
+            try OKInbox.writeIdea(idea(), to: vault, timeZone: utc, beforeRename: { tmp in
+                #expect(tmp.deletingLastPathComponent().path == staging(vault).path)
+                #expect(try String(contentsOf: tmp, encoding: .utf8) == rendered)
+                #expect(contentFiles(vault) == ["_inbox/.ok/frontmatter.yml"])
+                throw Interrupted()
+            })
+        }
+        #expect(contentFiles(vault) == ["_inbox/.ok/frontmatter.yml"])
+        #expect(try FileManager.default.contentsOfDirectory(atPath: staging(vault).path) == [])
+
+        let url = try OKInbox.writeIdea(idea(), to: vault, timeZone: utc)
+        #expect(try String(contentsOf: url, encoding: .utf8) == rendered)
+        #expect(contentFiles(vault) == ["_inbox/.ok/frontmatter.yml", "_inbox/ideias/2026-10-14-venda-b2b-por-encomenda.md"])
+        #expect(try FileManager.default.contentsOfDirectory(atPath: staging(vault).path) == [])
+    }
+
+    @Test func dailyIsStagedOutsideContentFoldersUntilTheRename() throws {
+        let vault = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault) }
+        let daily = try OKInbox.appendToDaily("primeira", at: date, to: vault, timeZone: utc)
+        let before = try String(contentsOf: daily, encoding: .utf8)
+        let files = ["_inbox/.ok/frontmatter.yml", "_inbox/diario/2026-10-14.md"]
+        #expect(contentFiles(vault) == files)
+
+        #expect(throws: Interrupted.self) {
+            try OKInbox.appendToDaily("segunda", at: date, to: vault, timeZone: utc, beforeRename: { tmp in
+                #expect(tmp.deletingLastPathComponent().path == staging(vault).path)
+                #expect(try String(contentsOf: tmp, encoding: .utf8) == before + "- 14:32 segunda\n")
+                #expect(try String(contentsOf: daily, encoding: .utf8) == before)
+                #expect(contentFiles(vault) == files)
+                throw Interrupted()
+            })
+        }
+        #expect(try String(contentsOf: daily, encoding: .utf8) == before)
+        #expect(contentFiles(vault) == files)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: staging(vault).path) == [])
+    }
+
     @Test func obsidianDailyHeaderUnchanged() {
         #expect(DailyNote.inserting("Ideia nova", at: date, into: nil, timeZone: utc) == """
         ---
