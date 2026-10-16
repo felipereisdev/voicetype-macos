@@ -102,25 +102,41 @@ public enum OKInbox {
     public enum AppendError: Error, Equatable, LocalizedError {
         /// The daily kept changing between each read and the rename.
         case dailyKeepsChanging
+        /// The daily changed during the append and couldn't be put back; the
+        /// version taken out of it is at this path.
+        case outsideVersionKept(String)
 
         public var errorDescription: String? {
-            "O diário de hoje foi alterado durante a gravação da nota de voz. Tente de novo."
+            switch self {
+            case .dailyKeepsChanging:
+                "O diário de hoje foi alterado durante a gravação da nota de voz. Tente de novo."
+            case let .outsideVersionKept(path):
+                "O diário de hoje foi alterado durante a gravação da nota de voz e não pôde ser restaurado. A versão alterada foi guardada em \(path)."
+            }
         }
     }
 
     static let dailyAttempts = 5
 
+    /// Where the test hook of `appendToDaily` runs, after a swap took a
+    /// version out of the daily: before it's moved to the preserved folder,
+    /// and before it's swapped back in. A throw there acts as a failure of
+    /// that step.
+    enum DailyStep: Equatable { case preserve, restore }
+
     /// `beforeRename` sees the staged file right before each attempt to move
     /// it in (tests). The new daily goes in only over the version it was
     /// built from: a save in between is put back and the entry is inserted
-    /// again into it.
+    /// again into it. Every version taken out of the daily is kept (see
+    /// `installDaily`).
     static func appendToDaily(
         _ text: String,
         at date: Date = Date(),
         to vault: URL,
         timeZone: TimeZone = .current,
         fileManager: FileManager = .default,
-        beforeRename: ((URL) throws -> Void)?
+        beforeRename: ((URL) throws -> Void)?,
+        fault: ((DailyStep) throws -> Void)? = nil
     ) throws -> URL {
         let url = dailyURL(in: vault, for: date, timeZone: timeZone)
         try prepare(url.deletingLastPathComponent(), in: vault, fileManager: fileManager)
@@ -132,7 +148,7 @@ public enum OKInbox {
             let existing = try readDaily(url)
             let out = DailyNote.inserting(text, at: date, into: existing?.text, timeZone: timeZone, newFileHeader: header)
             if try installDaily(Data(out.utf8), over: existing?.data, at: url, vault: vault,
-                                fileManager: fileManager, beforeRename: beforeRename) {
+                                fileManager: fileManager, beforeRename: beforeRename, fault: fault) {
                 return url
             }
         }
@@ -186,19 +202,26 @@ public enum OKInbox {
     /// Moves `data` onto the daily only if it still holds `read` (`nil`: no
     /// daily, created with `RENAME_EXCL`). The update is a `RENAME_SWAP`
     /// whose outcome is checked: when what came out isn't `read`, it's
-    /// swapped back and `false` returned for the caller to rebuild on it. A
-    /// version that took our place in that instant comes out of the second
-    /// swap and is kept in `.ok/local/voicetype-preserved/inbox/`.
+    /// swapped back and `false` returned for the caller to rebuild on it.
+    ///
+    /// What comes out of the daily (by either swap) is an inode someone may
+    /// still be writing to through a descriptor opened on the daily, so it's
+    /// never deleted, on success or on any error: it goes to
+    /// `.ok/local/voicetype-preserved/inbox/`, or stays in the staging when
+    /// that move fails. When the outside version can't be swapped back,
+    /// `outsideVersionKept` says where it is.
     private static func installDaily(
         _ data: Data,
         over read: Data?,
         at url: URL,
         vault: URL,
         fileManager: FileManager,
-        beforeRename: ((URL) throws -> Void)?
+        beforeRename: ((URL) throws -> Void)?,
+        fault: ((DailyStep) throws -> Void)?
     ) throws -> Bool {
         let tmp = try stage(data, for: url, vault: vault, fileManager: fileManager)
-        defer { try? fileManager.removeItem(at: tmp) }
+        var tmpIsOurs = true
+        defer { if tmpIsOurs { try? fileManager.removeItem(at: tmp) } }
         try beforeRename?(tmp)
         guard let read else {
             if renamex_np(tmp.path, url.path, UInt32(RENAME_EXCL)) == 0 { return true }
@@ -209,16 +232,38 @@ public enum OKInbox {
             guard errno == ENOENT else { throw OKDurableFile.posixError() }
             return false
         }
-        // `tmp` now holds what came out of the daily: the version we read
-        // (all of it is in ours) is deleted.
-        if try Data(contentsOf: tmp) == read { return true }
-        guard renamex_np(tmp.path, url.path, UInt32(RENAME_SWAP)) == 0 else { throw OKDurableFile.posixError() }
-        if try Data(contentsOf: tmp) != data {
-            let preserved = vault.appendingPathComponent(".ok/local/voicetype-preserved/inbox", isDirectory: true)
-            try fileManager.createDirectory(at: preserved, withIntermediateDirectories: true)
-            try fileManager.moveItem(at: tmp, to: preserved.appendingPathComponent(tmp.lastPathComponent))
+        tmpIsOurs = false
+        try? OKDurableFile.syncDirectory(url.deletingLastPathComponent())
+        let kept = retain(tmp, in: vault, fileManager: fileManager, fault: fault)
+        guard let out = try? Data(contentsOf: kept) else { throw AppendError.outsideVersionKept(kept.path) }
+        if out == read { return true }
+        do {
+            try fault?(.restore)
+            guard renamex_np(kept.path, url.path, UInt32(RENAME_SWAP)) == 0 else { throw OKDurableFile.posixError() }
+        } catch {
+            throw AppendError.outsideVersionKept(kept.path)
         }
+        try? OKDurableFile.syncDirectory(url.deletingLastPathComponent())
+        try? OKDurableFile.syncDirectory(kept.deletingLastPathComponent())
         return false
+    }
+
+    /// Moves a version taken out of the daily to
+    /// `.ok/local/voicetype-preserved/inbox/` (on disk before returning) and
+    /// returns where it is: still in the staging when the move fails.
+    private static func retain(_ file: URL, in vault: URL, fileManager: FileManager, fault: ((DailyStep) throws -> Void)?) -> URL {
+        let dir = vault.appendingPathComponent(".ok/local/voicetype-preserved/inbox", isDirectory: true)
+        let target = dir.appendingPathComponent(file.lastPathComponent)
+        do {
+            try fault?(.preserve)
+            try fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
+            guard renamex_np(file.path, target.path, UInt32(RENAME_EXCL)) == 0 else { throw OKDurableFile.posixError() }
+            try OKDurableFile.syncDirectory(dir)
+            try OKDurableFile.syncDirectory(file.deletingLastPathComponent())
+            return target
+        } catch {
+            return fileManager.fileExists(atPath: target.path) ? target : file
+        }
     }
 
     /// A uniquely named copy of `data` under `.ok/local/voicetype-staging/`
