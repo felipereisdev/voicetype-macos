@@ -99,7 +99,21 @@ public enum OKInbox {
         try appendToDaily(text, at: date, to: vault, timeZone: timeZone, fileManager: fileManager, beforeRename: nil)
     }
 
-    /// `beforeRename` sees the staged file right before it is moved in (tests).
+    public enum AppendError: Error, Equatable, LocalizedError {
+        /// The daily kept changing between each read and the rename.
+        case dailyKeepsChanging
+
+        public var errorDescription: String? {
+            "O diário de hoje foi alterado durante a gravação da nota de voz. Tente de novo."
+        }
+    }
+
+    static let dailyAttempts = 5
+
+    /// `beforeRename` sees the staged file right before each attempt to move
+    /// it in (tests). The new daily goes in only over the version it was
+    /// built from: a save in between is put back and the entry is inserted
+    /// again into it.
     static func appendToDaily(
         _ text: String,
         at date: Date = Date(),
@@ -110,14 +124,19 @@ public enum OKInbox {
     ) throws -> URL {
         let url = dailyURL(in: vault, for: date, timeZone: timeZone)
         try prepare(url.deletingLastPathComponent(), in: vault, fileManager: fileManager)
-        let existing = fileManager.fileExists(atPath: url.path) ? try String(contentsOf: url, encoding: .utf8) : nil
         let day = day(date, timeZone)
         let header = "---\ntitle: \(MeetingNoteRenderer.yamlString("Diário \(day)"))\n"
             + "description: \(MeetingNoteRenderer.yamlString("Notas de voz de \(day)."))\n"
             + "type: diario\ndate: \(day)\ntags: [diario]\n---\n\n"
-        let out = DailyNote.inserting(text, at: date, into: existing, timeZone: timeZone, newFileHeader: header)
-        try stagedWrite(Data(out.utf8), to: url, vault: vault, replacing: true, fileManager: fileManager, beforeRename: beforeRename)
-        return url
+        for _ in 0..<dailyAttempts {
+            let existing = try readDaily(url)
+            let out = DailyNote.inserting(text, at: date, into: existing?.text, timeZone: timeZone, newFileHeader: header)
+            if try installDaily(Data(out.utf8), over: existing?.data, at: url, vault: vault,
+                                fileManager: fileManager, beforeRename: beforeRename) {
+                return url
+            }
+        }
+        throw AppendError.dailyKeepsChanging
     }
 
     // MARK: - Helpers
@@ -151,11 +170,71 @@ public enum OKInbox {
         try stagedWrite(Data(metadata.utf8), to: url, vault: vault, replacing: false, fileManager: fileManager, beforeRename: nil)
     }
 
-    /// Writes `data` to a uniquely named file under `.ok/local/voicetype-staging/`
-    /// (ignored by OpenKnowledge's git) and renames it onto `url`, so no
-    /// temporary or partial copy ever sits in a content folder, where the OK
-    /// auto-commit would pick it up. `replacing: false` uses `RENAME_EXCL` and
-    /// keeps an existing file. A failure leaves `url` as it was.
+    /// The daily's bytes and text; `nil` when there's no daily. A file that
+    /// isn't UTF-8 throws instead of being overwritten.
+    private static func readDaily(_ url: URL) throws -> (data: Data, text: String)? {
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+            return nil
+        }
+        guard let text = String(data: data, encoding: .utf8) else { throw CocoaError(.fileReadInapplicableStringEncoding) }
+        return (data, text)
+    }
+
+    /// Moves `data` onto the daily only if it still holds `read` (`nil`: no
+    /// daily, created with `RENAME_EXCL`). The update is a `RENAME_SWAP`
+    /// whose outcome is checked: when what came out isn't `read`, it's
+    /// swapped back and `false` returned for the caller to rebuild on it. A
+    /// version that took our place in that instant comes out of the second
+    /// swap and is kept in `.ok/local/voicetype-preserved/inbox/`.
+    private static func installDaily(
+        _ data: Data,
+        over read: Data?,
+        at url: URL,
+        vault: URL,
+        fileManager: FileManager,
+        beforeRename: ((URL) throws -> Void)?
+    ) throws -> Bool {
+        let tmp = try stage(data, for: url, vault: vault, fileManager: fileManager)
+        defer { try? fileManager.removeItem(at: tmp) }
+        try beforeRename?(tmp)
+        guard let read else {
+            if renamex_np(tmp.path, url.path, UInt32(RENAME_EXCL)) == 0 { return true }
+            guard errno == EEXIST else { throw OKDurableFile.posixError() }
+            return false
+        }
+        guard renamex_np(tmp.path, url.path, UInt32(RENAME_SWAP)) == 0 else {
+            guard errno == ENOENT else { throw OKDurableFile.posixError() }
+            return false
+        }
+        // `tmp` now holds what came out of the daily: the version we read
+        // (all of it is in ours) is deleted.
+        if try Data(contentsOf: tmp) == read { return true }
+        guard renamex_np(tmp.path, url.path, UInt32(RENAME_SWAP)) == 0 else { throw OKDurableFile.posixError() }
+        if try Data(contentsOf: tmp) != data {
+            let preserved = vault.appendingPathComponent(".ok/local/voicetype-preserved/inbox", isDirectory: true)
+            try fileManager.createDirectory(at: preserved, withIntermediateDirectories: true)
+            try fileManager.moveItem(at: tmp, to: preserved.appendingPathComponent(tmp.lastPathComponent))
+        }
+        return false
+    }
+
+    /// A uniquely named copy of `data` under `.ok/local/voicetype-staging/`
+    /// (ignored by OpenKnowledge's git), so no temporary or partial copy
+    /// ever sits in a content folder, where the OK auto-commit would pick it up.
+    private static func stage(_ data: Data, for url: URL, vault: URL, fileManager: FileManager) throws -> URL {
+        let staging = vault.appendingPathComponent(".ok/local/voicetype-staging", isDirectory: true)
+        try fileManager.createDirectory(at: staging, withIntermediateDirectories: true)
+        let tmp = staging.appendingPathComponent("inbox-\(UUID().uuidString).\(url.pathExtension)")
+        try data.write(to: tmp, options: .withoutOverwriting)
+        return tmp
+    }
+
+    /// Stages `data` (see `stage`) and renames it onto `url`. `replacing:
+    /// false` uses `RENAME_EXCL` and keeps an existing file. A failure leaves
+    /// `url` as it was.
     private static func stagedWrite(
         _ data: Data,
         to url: URL,
@@ -164,10 +243,7 @@ public enum OKInbox {
         fileManager: FileManager,
         beforeRename: ((URL) throws -> Void)?
     ) throws {
-        let staging = vault.appendingPathComponent(".ok/local/voicetype-staging", isDirectory: true)
-        try fileManager.createDirectory(at: staging, withIntermediateDirectories: true)
-        let tmp = staging.appendingPathComponent("inbox-\(UUID().uuidString).\(url.pathExtension)")
-        try data.write(to: tmp, options: .withoutOverwriting)
+        let tmp = try stage(data, for: url, vault: vault, fileManager: fileManager)
         defer { try? fileManager.removeItem(at: tmp) }
         try beforeRename?(tmp)
         if renamex_np(tmp.path, url.path, replacing ? 0 : UInt32(RENAME_EXCL)) != 0 {

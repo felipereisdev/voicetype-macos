@@ -197,6 +197,58 @@ struct OKInboxTests {
         #expect(try FileManager.default.contentsOfDirectory(atPath: staging(vault).path) == [])
     }
 
+    @Test func dailySavedBetweenReadAndRenameKeepsBothVersions() throws {
+        for atomic in [false, true] {
+            let vault = try makeVault()
+            defer { try? FileManager.default.removeItem(at: vault) }
+            let daily = try OKInbox.appendToDaily("anterior", at: date, to: vault, timeZone: utc)
+            let before = try String(contentsOf: daily, encoding: .utf8)
+            var attempts = 0
+            try OKInbox.appendToDaily("nova", at: date, to: vault, timeZone: utc, beforeRename: { _ in
+                attempts += 1
+                if attempts == 1 {
+                    try Data((before + "\nEdição manual concorrente\n").utf8).write(to: daily, options: atomic ? .atomic : [])
+                }
+            })
+            let text = try String(contentsOf: daily, encoding: .utf8)
+            #expect(attempts == 2, "atomic: \(atomic)")
+            #expect(text == before + "\nEdição manual concorrente\n- 14:32 nova\n", "atomic: \(atomic)")
+            #expect(try FileManager.default.contentsOfDirectory(atPath: staging(vault).path) == [])
+            #expect(!FileManager.default.fileExists(atPath: vault.appendingPathComponent(".ok/local/voicetype-preserved").path))
+        }
+    }
+
+    @Test func dailyCreatedBetweenReadAndRenameIsNotReplaced() throws {
+        let vault = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault) }
+        let daily = OKInbox.dailyURL(in: vault, for: date, timeZone: utc)
+        let manual = "---\ntitle: Diário manual\n---\n\nEscrito à mão.\n"
+        var attempts = 0
+        try OKInbox.appendToDaily("nova", at: date, to: vault, timeZone: utc, beforeRename: { _ in
+            attempts += 1
+            if attempts == 1 { try Data(manual.utf8).write(to: daily) }
+        })
+        #expect(attempts == 2)
+        #expect(try String(contentsOf: daily, encoding: .utf8) == manual + "\n## Ideias\n\n- 14:32 nova\n")
+        #expect(try FileManager.default.contentsOfDirectory(atPath: staging(vault).path) == [])
+    }
+
+    @Test func dailyThatKeepsChangingIsNeverOverwritten() throws {
+        let vault = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault) }
+        let daily = try OKInbox.appendToDaily("anterior", at: date, to: vault, timeZone: utc)
+        var attempts = 0
+        #expect(throws: OKInbox.AppendError.dailyKeepsChanging) {
+            try OKInbox.appendToDaily("nova", at: date, to: vault, timeZone: utc, beforeRename: { _ in
+                attempts += 1
+                try Data("Versão \(attempts)\n".utf8).write(to: daily)
+            })
+        }
+        #expect(attempts == OKInbox.dailyAttempts)
+        #expect(try String(contentsOf: daily, encoding: .utf8) == "Versão \(OKInbox.dailyAttempts)\n")
+        #expect(try FileManager.default.contentsOfDirectory(atPath: staging(vault).path) == [])
+    }
+
     @Test func obsidianDailyHeaderUnchanged() {
         #expect(DailyNote.inserting("Ideia nova", at: date, into: nil, timeZone: utc) == """
         ---
