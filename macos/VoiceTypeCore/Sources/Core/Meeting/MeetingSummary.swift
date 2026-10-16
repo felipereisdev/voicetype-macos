@@ -72,9 +72,11 @@ public struct MeetingSummary: Codable, Sendable, Equatable {
     /// Trims every field, drops empty list entries and blank optionals,
     /// normalizes org/client against `orgs`, drops unknown meeting types and
     /// non-ISO due dates, and speaker guesses that aren't an "Outro N" label
-    /// matched to one of `invitees` (first guess per label/name wins).
-    /// Throws when the two mandatory fields are blank.
-    public func validated(orgs: [MeetingOrg], invitees: [String] = []) throws -> MeetingSummary {
+    /// of `transcript` matched to a name the model can't have invented: one
+    /// of `invitees` or, without an invite, a name said in `transcript`
+    /// (first guess per label/name wins). Throws when the two mandatory
+    /// fields are blank.
+    public func validated(orgs: [MeetingOrg], invitees: [String] = [], transcript: String = "") throws -> MeetingSummary {
         func clean(_ s: String) -> String { s.trimmingCharacters(in: .whitespacesAndNewlines) }
         func cleanOptional(_ s: String?) -> String? {
             guard let s else { return nil }
@@ -92,7 +94,10 @@ public struct MeetingSummary: Codable, Sendable, Equatable {
         var labels = Set<String>(), names = Set<String>()
         let guesses = (speakers ?? []).compactMap { g -> SpeakerGuess? in
             let label = clean(g.label), name = clean(g.name)
-            guard label.wholeMatch(of: #/Outro [1-9][0-9]*/#) != nil, invitees.contains(name),
+            let known = invitees.isEmpty
+                ? name.count >= 2 && transcript.range(of: name, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+                : invitees.contains(name)
+            guard label.wholeMatch(of: #/Outro [1-9][0-9]*/#) != nil, transcript.contains("\(label):"), known,
                   !labels.contains(label), !names.contains(name) else { return nil }
             labels.insert(label)
             names.insert(name)
@@ -126,7 +131,7 @@ public struct MeetingSummary: Codable, Sendable, Equatable {
 
     /// JSON Schema handed to the provider (e.g. `claude -p --json-schema`).
     /// org/client are enums of the catalog's canonical names (or null);
-    /// speaker names are an enum of `invitees` (no invitees = no guesses).
+    /// speaker names are an enum of `invitees` when there is an invite.
     public static func jsonSchema(orgs: [MeetingOrg], invitees: [String] = []) -> String {
         func nullableEnum(_ values: [String]) -> [String: Any] {
             ["type": ["string", "null"], "enum": values.map { $0 as Any } + [NSNull()]]
@@ -143,12 +148,10 @@ public struct MeetingSummary: Codable, Sendable, Equatable {
             "type": "object", "additionalProperties": false, "required": ["label", "name"],
             "properties": [
                 "label": ["type": "string", "pattern": "^Outro [1-9][0-9]*$"],
-                "name": ["type": "string", "enum": invitees],
+                "name": invitees.isEmpty ? ["type": "string"] : ["type": "string", "enum": invitees],
             ],
         ]
-        let speakers: [String: Any] = invitees.isEmpty
-            ? ["type": "array", "maxItems": 0]
-            : ["type": "array", "items": speaker]
+        let speakers: [String: Any] = ["type": "array", "items": speaker]
         let schema: [String: Any] = [
             "type": "object", "additionalProperties": false,
             "required": ["title", "summary", "decisions", "actionItems", "org", "client", "meetingType", "speakers"],

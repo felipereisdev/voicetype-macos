@@ -49,19 +49,36 @@ struct MeetingCalendarTests {
             .init(label: "Você", name: "Bo"),           // not a remote label
             .init(label: "Outro 4", name: "Bo"),
         ])
-        let v = try raw.validated(orgs: [], invitees: ["Ana Silva", "Bo"])
+        let transcript = (1...4).map { "[00:0\($0)] Outro \($0): oi" }.joined(separator: "\n")
+        let v = try raw.validated(orgs: [], invitees: ["Ana Silva", "Bo"], transcript: transcript)
         #expect(v.speakers == [.init(label: "Outro 1", name: "Ana Silva"), .init(label: "Outro 4", name: "Bo")])
-        #expect(try raw.validated(orgs: []).speakers == nil)
+        // A label that isn't in the transcript is dropped.
+        #expect(try raw.validated(orgs: [], invitees: ["Ana Silva", "Bo"]).speakers == nil)
     }
 
-    @Test func schemaLimitsSpeakerNamesToInvitees() throws {
+    @Test func withoutInviteOnlyNamesSaidInTheTranscript() throws {
+        let transcript = """
+        [00:01] Outro 1: Tom, how are you doing?
+        [00:03] Outro 2: Fine. Hi, Inês.
+        """
+        let raw = MeetingSummary(title: "t", summary: "s", speakers: [
+            .init(label: "Outro 1", name: "Ines"), // said (diacritics/case ignored)
+            .init(label: "Outro 2", name: "Tom"),
+            .init(label: "Outro 3", name: "Jan"),  // not said
+        ])
+        let v = try raw.validated(orgs: [], transcript: transcript)
+        #expect(v.speakers == [.init(label: "Outro 1", name: "Ines"), .init(label: "Outro 2", name: "Tom")])
+    }
+
+    @Test func schemaLimitsSpeakerNamesToInviteesWhenThereIsAnInvite() throws {
         func speakers(_ invitees: [String]) throws -> [String: Any] {
             let object = try #require(try JSONSerialization.jsonObject(
                 with: Data(MeetingSummary.jsonSchema(orgs: [], invitees: invitees).utf8)
             ) as? [String: Any])
             return try #require((object["properties"] as? [String: Any])?["speakers"] as? [String: Any])
         }
-        #expect(try speakers([])["maxItems"] as? Int == 0)
+        let free = try #require(try speakers([])["items"] as? [String: Any])
+        #expect(((free["properties"] as? [String: Any])?["name"] as? [String: Any])?["enum"] == nil)
         let item = try #require(try speakers(["Ana"])["items"] as? [String: Any])
         let name = try #require((item["properties"] as? [String: Any])?["name"] as? [String: Any])
         #expect(name["enum"] as? [String] == ["Ana"])
