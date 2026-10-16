@@ -46,7 +46,8 @@ macos/
 │   │   ├── Config/               ConfigStore (actor) + AppConfig (Codable)
 │   │   ├── History/              HistoryStore (actor), capped at 500
 │   │   ├── Pipeline/             Transcriber, Refiner, Translator, Pipeline (actor)
-│   │   └── GroqClient/           URLSession async/await
+│   │   ├── GroqClient/           URLSession async/await
+│   │   └── OpenKnowledge/        MegaBrain vault: proposal, approval session, transactional OKVaultWriter
 │   └── Tests/CoreTests/          swift-testing
 ├── build/                        entitlements.plist
 └── scripts/                      make-icons.sh

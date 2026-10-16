@@ -1,8 +1,9 @@
 import Core
 import Foundation
 
-/// pt-BR copy for the OpenKnowledge approvals: menu, discard alert and the
-/// notifications of a vault write the launch had to finish or undo.
+/// pt-BR copy for the OpenKnowledge approvals: menu, discard alert, the
+/// approval window and the notifications of a vault write the launch had to
+/// finish or undo.
 enum ApprovalStrings {
     static let windowTitle = "Aprovar reunião"
     static let noMeeting = "Nenhuma reunião selecionada."
@@ -66,5 +67,98 @@ enum ApprovalStrings {
 
     static func recoveryFailedBody(_ error: String) -> String {
         "\(error) O VoiceType tenta de novo no próximo início ou ao abrir a reunião."
+    }
+
+    // Window
+    static func stepCounter(_ k: Int, of n: Int) -> String { "Passo \(k) de \(n)" }
+    static let projectStep = "Projeto"
+    static let searchProjects = "Buscar projeto"
+    static let suggested = "sugerido"
+    static let newProject = "＋ Novo projeto…"
+    static func projectLocked(_ project: String) -> String { "Projeto fixado na primeira aprovação: \(project)" }
+    static let recordLabel = "Registro da reunião"
+    static func newItem(_ type: OKKnowledgeType) -> String { "novo · \(typeName(type))" }
+    static func updateItem(_ type: OKKnowledgeType) -> String { "atualização · \(typeName(type))" }
+    static let conflictItem = "conflito · já mudou no MegaBrain"
+    static let preview = "Preview"
+    static let editor = "Editor"
+    static let undoEdits = "Desfazer edições"
+    static let back = "Voltar"
+    static let skip = "Pular"
+    static let approve = "Aprovar"
+    static let commit = "Gravar no MegaBrain"
+    static let retryDistillation = "Tentar destilar de novo"
+    static func summaryFailure(_ error: String) -> String { "Reunião sem resumo: \(error). Só o registro e a transcrição vão para o MegaBrain." }
+    static func distillationError(_ error: String) -> String { "Sem conhecimento destilado: \(error). Dá para gravar só o registro e a transcrição." }
+
+    static func typeName(_ type: OKKnowledgeType) -> String {
+        switch type {
+        case .decisao: "decisão"
+        case .regraDeNegocio: "regra de negócio"
+        case .arquitetura: "arquitetura"
+        case .tutorial: "tutorial"
+        case .gotcha: "gotcha"
+        case .termo: "termo"
+        case .snippet: "snippet"
+        }
+    }
+
+    // Window progress and banners
+    static func distilling(_ project: String) -> String { "Destilando contra \(project)…" }
+    static func preparing(_ root: String) -> String { "Preparando para \(root)…" }
+    static let committing = "Gravando no MegaBrain…"
+    static func vaultMismatch(prepared: String, current: String) -> String {
+        "Esta reunião foi preparada para \(prepared). O vault atual é \(current)."
+    }
+    static let unknownVault = "um vault inválido"
+    static func prepareAgain(_ current: String) -> String { "Preparar de novo para \(current)" }
+    static let journalPending = "Uma gravação desta reunião no MegaBrain ficou incompleta. O VoiceType conclui ao reabrir esta reunião ou no próximo início."
+    static let reprocessed = "Esta reunião foi reprocessada. A revisão recomeçou com a proposta nova."
+    static let gone = "Esta pendência não existe mais."
+    static func distillFailed(_ project: String, _ error: String) -> String {
+        "Não deu para destilar contra \(project) (\(error)). Dá para gravar só o registro e a transcrição, ou tentar de novo."
+    }
+    static let redistilled = "O MegaBrain mudou desde a proposta (ou ela tem mais de 24 h). A destilação foi refeita; revise os itens marcados."
+    static func redistillFailed(_ error: String) -> String {
+        "Não deu para refazer a destilação (\(error)). Pule os itens para gravar só o registro e a transcrição, ou tente de novo."
+    }
+    static func relocated(from old: String, to new: String) -> String {
+        "Outra reunião já usa \(old). Esta passa a ser \(new); revise os passos marcados."
+    }
+    static let changedDuringCommit = "O MegaBrain mudou durante a gravação. Tente gravar de novo."
+    static func conflicts(_ count: Int, preserved: [String]) -> String {
+        let changed = count == 1 ? "1 item mudou" : "\(count) itens mudaram"
+        return "\(changed) no MegaBrain desde a proposta. Revise de novo." + kept(preserved)
+    }
+    static func partial(_ count: Int, preserved: [String]) -> String {
+        let changed = count == 1 ? "1 item mudou" : "\(count) itens mudaram"
+        return "A reunião foi gravada, mas \(changed) no MegaBrain durante a gravação. Revise só esses itens." + kept(preserved)
+    }
+    static func incomplete(_ paths: [String]) -> String {
+        "A gravação ficou incompleta (\(paths.joined(separator: ", "))). O VoiceType conclui ao reabrir esta reunião ou no próximo início."
+    }
+    static func finalizeFailed(_ error: String) -> String {
+        "A reunião foi gravada no MegaBrain, mas o VoiceType não conseguiu concluir o estado local (\(error)). Reinicie o VoiceType para concluir."
+    }
+    static let committedTitle = "Reunião gravada no MegaBrain"
+
+    private static func kept(_ preserved: [String]) -> String {
+        preserved.isEmpty ? "" : " Versões externas guardadas em \(preserved.joined(separator: ", "))."
+    }
+
+    // New project sheet
+    static let newProjectTitle = "Novo projeto"
+    static let slugField = "Slug (kebab-case, sem acento)"
+    static let descriptionField = "Descrição curta"
+    static let invalidSlug = "Use letras minúsculas, números e hífens, sem acento (ex.: billing-api)."
+    static let slugTaken = "Já existe um projeto com esse slug."
+    static let create = "Criar"
+    static func projectError(_ error: OKApprovalSession.ProjectError) -> String {
+        switch error {
+        case .invalidSlug: invalidSlug
+        case .alreadyExists: slugTaken
+        case .emptyDescription: "Informe a descrição do projeto."
+        case .projectLocked: "O projeto desta reunião já foi fixado na primeira aprovação."
+        }
     }
 }

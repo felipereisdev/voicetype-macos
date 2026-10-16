@@ -58,11 +58,11 @@ struct VoiceTypeApp: App {
         .commandsRemoved()
 
         // OpenKnowledge approvals: opened only from the menu's pending list,
-        // never by itself. Placeholder until the step-by-step window lands.
+        // never by itself.
         Window(ApprovalStrings.windowTitle, id: ApprovalRouter.windowID) {
-            Text(approvalRouter.meetingDirectory.flatMap { MeetingProposalStore.load($0)?.note.summary.title } ?? ApprovalStrings.noMeeting)
-                .padding(24)
-                .frame(minWidth: 360, minHeight: 120)
+            ApprovalWindowView()
+                .environment(deps)
+                .environment(approvalRouter)
                 .onAppear { ActivationPolicyTracker.enter() }
                 .onDisappear { ActivationPolicyTracker.leave() }
         }

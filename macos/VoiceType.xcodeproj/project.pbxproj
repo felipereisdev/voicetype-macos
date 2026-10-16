@@ -126,6 +126,11 @@
 		A020000000000000000000D2 /* ApprovalRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B020000000000000000000D2 /* ApprovalRouter.swift */; };
 		A020000000000000000000D3 /* ApprovalStrings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B020000000000000000000D3 /* ApprovalStrings.swift */; };
 		A020000000000000000000D4 /* PendingApprovalsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B020000000000000000000D4 /* PendingApprovalsTests.swift */; };
+		A020000000000000000000D5 /* ApprovalViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B020000000000000000000D5 /* ApprovalViewModel.swift */; };
+		A020000000000000000000D6 /* ApprovalWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B020000000000000000000D6 /* ApprovalWindowView.swift */; };
+		A020000000000000000000D7 /* MarkdownPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = B020000000000000000000D7 /* MarkdownPreview.swift */; };
+		A020000000000000000000D8 /* NewProjectSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B020000000000000000000D8 /* NewProjectSheet.swift */; };
+		A020000000000000000000D9 /* ApprovalViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B020000000000000000000D9 /* ApprovalViewModelTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -267,6 +272,11 @@
 		B020000000000000000000D2 /* ApprovalRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalRouter.swift; sourceTree = "<group>"; };
 		B020000000000000000000D3 /* ApprovalStrings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalStrings.swift; sourceTree = "<group>"; };
 		B020000000000000000000D4 /* PendingApprovalsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingApprovalsTests.swift; sourceTree = "<group>"; };
+		B020000000000000000000D5 /* ApprovalViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalViewModel.swift; sourceTree = "<group>"; };
+		B020000000000000000000D6 /* ApprovalWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalWindowView.swift; sourceTree = "<group>"; };
+		B020000000000000000000D7 /* MarkdownPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownPreview.swift; sourceTree = "<group>"; };
+		B020000000000000000000D8 /* NewProjectSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewProjectSheet.swift; sourceTree = "<group>"; };
+		B020000000000000000000D9 /* ApprovalViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalViewModelTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -304,6 +314,10 @@
 				B020000000000000000000D1 /* PendingApprovals.swift */,
 				B020000000000000000000D2 /* ApprovalRouter.swift */,
 				B020000000000000000000D3 /* ApprovalStrings.swift */,
+				B020000000000000000000D5 /* ApprovalViewModel.swift */,
+				B020000000000000000000D6 /* ApprovalWindowView.swift */,
+				B020000000000000000000D7 /* MarkdownPreview.swift */,
+				B020000000000000000000D8 /* NewProjectSheet.swift */,
 			);
 			path = Approval;
 			sourceTree = "<group>";
@@ -312,6 +326,7 @@
 			isa = PBXGroup;
 			children = (
 				B020000000000000000000D4 /* PendingApprovalsTests.swift */,
+				B020000000000000000000D9 /* ApprovalViewModelTests.swift */,
 			);
 			path = Approval;
 			sourceTree = "<group>";
@@ -888,6 +903,10 @@
 				A020000000000000000000D1 /* PendingApprovals.swift in Sources */,
 				A020000000000000000000D2 /* ApprovalRouter.swift in Sources */,
 				A020000000000000000000D3 /* ApprovalStrings.swift in Sources */,
+				A020000000000000000000D5 /* ApprovalViewModel.swift in Sources */,
+				A020000000000000000000D6 /* ApprovalWindowView.swift in Sources */,
+				A020000000000000000000D7 /* MarkdownPreview.swift in Sources */,
+				A020000000000000000000D8 /* NewProjectSheet.swift in Sources */,
 				A020000000000000000000A1 /* MeetingRecorder.swift in Sources */,
 				A020000000000000000000B1 /* MeetingProcessor.swift in Sources */,
 				A020000000000000000000B9 /* MeetingDiarizer.swift in Sources */,
@@ -922,6 +941,7 @@
 			files = (
 				A008000000000000000000A3 /* NotifierTests.swift in Sources */,
 				A020000000000000000000D4 /* PendingApprovalsTests.swift in Sources */,
+				A020000000000000000000D9 /* ApprovalViewModelTests.swift in Sources */,
 				A008000000000000000000A4 /* LoginItemTests.swift in Sources */,
 				A008000000000000000000A5 /* SystemSettingsLinkTests.swift in Sources */,
 				A001000000000000000000A5 /* AppDelegateSmokeTests.swift in Sources */,
