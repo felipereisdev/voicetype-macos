@@ -3,7 +3,8 @@ import Foundation
 /// Line-based reads and edits of top-level frontmatter keys. Not a YAML
 /// parser: enough for the vault's templates and docs (plain or quoted
 /// scalars, flow lists, indented blocks), and every edit keeps the other
-/// lines byte for byte.
+/// lines byte for byte. Keys are compared by their YAML identity: `project`,
+/// `project :`, `'project'` and `"proj\u0065ct"` are the same key.
 public enum OKFrontmatter {
     /// The text between the `---` fences (without them) and what follows the
     /// closing fence. No opening `---` line, or no closing one, → `nil` and
@@ -21,8 +22,9 @@ public enum OKFrontmatter {
     public static func scalar(_ key: String, in md: String) -> String? {
         guard let lines = fences(md)?.lines else { return nil }
         let ranges = keyRanges(key, in: lines)
-        guard ranges.count == 1, let range = ranges.first else { return nil }
-        var value = String(lines[range.lowerBound].dropFirst(key.count + 1)).trimmingCharacters(in: .whitespaces)
+        guard ranges.count == 1, let range = ranges.first,
+              case .key(_, let rawValue) = parseLine(lines[range.lowerBound]) else { return nil }
+        var value = rawValue.trimmingCharacters(in: .whitespaces)
         for line in lines[(range.lowerBound + 1)..<range.upperBound] {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.hasPrefix("- ") || trimmed == "-" {
@@ -63,18 +65,42 @@ public enum OKFrontmatter {
         return join(parts.lines, parts.closing, parts.body)
     }
 
-    /// Top-level keys that appear more than once, in order of first
-    /// appearance. A strict YAML parser rejects such a frontmatter, so
-    /// untrusted Markdown with any duplicate left after `setting` is refused.
+    /// Top-level keys that appear more than once (by YAML identity), in order
+    /// of first appearance. Lines whose key this parser can't read are not
+    /// counted, so an empty result alone proves nothing: use `isWellFormed`.
     public static func duplicateKeys(_ md: String) -> [String] {
         guard let lines = fences(md)?.lines else { return [] }
         var seen: Set<String> = []
         var duplicates: [String] = []
         for line in lines {
-            guard let key = topLevelKey(line) else { continue }
+            guard case .key(let key, _) = parseLine(line) else { continue }
             if !seen.insert(key).inserted, !duplicates.contains(key) { duplicates.append(key) }
         }
         return duplicates
+    }
+
+    /// True when the document has a frontmatter whose every top-level line
+    /// is a `key: …` this parser reads (or a comment, a blank line, or a list
+    /// item or indented line under a key) and no key repeats. Explicit `? `
+    /// keys, flow, anchored, aliased or tagged keys, `<<` merges, bad escapes
+    /// and stray scalars make it false: untrusted Markdown that fails this
+    /// after `setting` is refused, never written.
+    public static func isWellFormed(_ md: String) -> Bool {
+        guard let lines = fences(md)?.lines else { return false }
+        var seen: Set<String> = []
+        for line in lines {
+            switch parseLine(line) {
+            case .key(let key, _):
+                guard seen.insert(key).inserted else { return false }
+            case .listItem:
+                guard !seen.isEmpty else { return false }
+            case .other:
+                continue
+            case .unsupported:
+                return false
+            }
+        }
+        return true
     }
 
     /// True when the frontmatter (never the body) still holds a template `TODO`.
@@ -118,7 +144,7 @@ public enum OKFrontmatter {
         var ranges: [Range<Int>] = []
         var start = 0
         while start < lines.count {
-            guard lines[start].hasPrefix(key + ":") else { start += 1; continue }
+            guard case .key(key, _) = parseLine(lines[start]) else { start += 1; continue }
             var end = start + 1
             while end < lines.count, belongsToPrevious(lines[end]) { end += 1 }
             ranges.append(start..<end)
@@ -127,12 +153,99 @@ public enum OKFrontmatter {
         return ranges
     }
 
-    /// `key` of a top-level `key: …` line; indented, list, comment and blank
-    /// lines have none.
-    private static func topLevelKey(_ line: String) -> String? {
-        guard let first = line.first, !first.isWhitespace, first != "-", first != "#",
-              let colon = line.firstIndex(of: ":") else { return nil }
-        return String(line[..<colon])
+    private enum Line: Equatable {
+        /// A top-level `key: value`, the key decoded, `value` after the `:`.
+        case key(String, value: String)
+        /// `- item` at column 0, part of the previous key's block.
+        case listItem
+        /// Blank, comment or indented line.
+        case other
+        /// A top-level line whose key this parser can't read.
+        case unsupported
+    }
+
+    /// Reads a frontmatter line: plain keys (trailing spaces before the `:`
+    /// dropped), single-quoted keys (`''`) and double-quoted keys (YAML
+    /// escapes). The `:` must be followed by a space, a tab or the line end.
+    private static func parseLine(_ line: String) -> Line {
+        guard let first = line.unicodeScalars.first else { return .other }
+        if first == " " || first == "\t" || first == "#" { return .other }
+        if line == "-" || line.hasPrefix("- ") || line.hasPrefix("-\t") { return .listItem }
+
+        let scalars = Array(line.unicodeScalars)
+        var key = ""
+        var i = 0
+        switch first {
+        case "\"":
+            guard let (decoded, end) = doubleQuoted(scalars) else { return .unsupported }
+            (key, i) = (decoded, end)
+        case "'":
+            guard let (decoded, end) = singleQuoted(scalars) else { return .unsupported }
+            (key, i) = (decoded, end)
+        default:
+            if "?,[]{}&*!|>%@`".unicodeScalars.contains(first) { return .unsupported }
+            while i < scalars.count, !(scalars[i] == ":" && isSeparator(scalars, i + 1)) {
+                if scalars[i] == "#", i > 0, scalars[i - 1] == " " || scalars[i - 1] == "\t" { return .unsupported }
+                key.unicodeScalars.append(scalars[i])
+                i += 1
+            }
+            guard i < scalars.count else { return .unsupported }
+            while let last = key.unicodeScalars.last, last == " " || last == "\t" { key.unicodeScalars.removeLast() }
+            if key == "<<" { return .unsupported }
+        }
+        while i < scalars.count, scalars[i] == " " || scalars[i] == "\t" { i += 1 }
+        guard i < scalars.count, scalars[i] == ":", isSeparator(scalars, i + 1) else { return .unsupported }
+        var value = ""
+        value.unicodeScalars.append(contentsOf: scalars[(i + 1)...])
+        return .key(key, value: value)
+    }
+
+    private static func isSeparator(_ scalars: [Unicode.Scalar], _ i: Int) -> Bool {
+        i == scalars.count || scalars[i] == " " || scalars[i] == "\t"
+    }
+
+    /// `'…'` starting at index 0 → decoded text and the index after the quote.
+    private static func singleQuoted(_ s: [Unicode.Scalar]) -> (String, Int)? {
+        var out = ""
+        var i = 1
+        while i < s.count {
+            if s[i] == "'" {
+                if i + 1 < s.count, s[i + 1] == "'" { out.append("'"); i += 2; continue }
+                return (out, i + 1)
+            }
+            out.unicodeScalars.append(s[i])
+            i += 1
+        }
+        return nil
+    }
+
+    /// `"…"` starting at index 0 → decoded text and the index after the quote;
+    /// an unknown escape (invalid YAML) → `nil`.
+    private static func doubleQuoted(_ s: [Unicode.Scalar]) -> (String, Int)? {
+        let simple: [Unicode.Scalar: String] = [
+            "0": "\u{0}", "a": "\u{7}", "b": "\u{8}", "t": "\t", "\t": "\t", "n": "\n", "v": "\u{B}",
+            "f": "\u{C}", "r": "\r", "e": "\u{1B}", " ": " ", "\"": "\"", "/": "/", "\\": "\\",
+            "N": "\u{85}", "_": "\u{A0}", "L": "\u{2028}", "P": "\u{2029}",
+        ]
+        var out = ""
+        var i = 1
+        while i < s.count {
+            let c = s[i]
+            if c == "\"" { return (out, i + 1) }
+            guard c == "\\" else { out.unicodeScalars.append(c); i += 1; continue }
+            guard i + 1 < s.count else { return nil }
+            let e = s[i + 1]
+            if let text = simple[e] { out += text; i += 2; continue }
+            let width = e == "x" ? 2 : e == "u" ? 4 : e == "U" ? 8 : 0
+            guard width > 0, i + 2 + width <= s.count else { return nil }
+            var hex = ""
+            hex.unicodeScalars.append(contentsOf: s[(i + 2)..<(i + 2 + width)])
+            guard hex.unicodeScalars.allSatisfy(\.properties.isASCIIHexDigit),
+                  let code = UInt32(hex, radix: 16), let scalar = Unicode.Scalar(code) else { return nil }
+            out.unicodeScalars.append(scalar)
+            i += 2 + width
+        }
+        return nil
     }
 
     private static func belongsToPrevious(_ line: String) -> Bool {

@@ -65,6 +65,43 @@ struct OKFrontmatterTests {
         #expect(OKFrontmatter.scalar("status", in: out) == "aceita")
     }
 
+    @Test func equivalentKeySpellingsAreTheSameKey() {
+        // Same YAML key spelled plain, with a space before `:`, single- and double-quoted, and escaped.
+        for spelling in ["project", "project ", "'project'", "\"project\"", "\"proj\\u0065ct\"", "\"proj\\x65ct\"", "'project' ", "\"project\"\t"] {
+            let md = "---\ntitle: A\ndescription: B\nproject: outro\n\(spelling): outro\ntype: decisao\n---\nCorpo\n"
+            #expect(OKFrontmatter.duplicateKeys(md) == ["project"], "\(spelling)")
+            #expect(!OKFrontmatter.isWellFormed(md), "\(spelling)")
+            #expect(OKFrontmatter.scalar("project", in: md) == nil, "\(spelling)")
+
+            let out = OKFrontmatter.setting("project", to: "p5", in: md)
+            #expect(out == "---\ntitle: A\ndescription: B\nproject: p5\ntype: decisao\n---\nCorpo\n", "\(spelling)")
+            #expect(OKFrontmatter.isWellFormed(out) && OKFrontmatter.scalar("project", in: out) == "p5", "\(spelling)")
+        }
+        // A quoted spelling alone is read like the plain key, and removing drops it.
+        let quoted = "---\n\"type\": decisao\n'status' : aceita\n---\nb\n"
+        #expect(OKFrontmatter.scalar("type", in: quoted) == "decisao" && OKFrontmatter.scalar("status", in: quoted) == "aceita")
+        #expect(OKFrontmatter.removing("status", in: OKFrontmatter.removing("type", in: quoted)) == "---\n---\nb\n")
+        #expect(OKFrontmatter.setting("type", to: "gotcha", in: "---\n\"type\": decisao\ntype : x\n---\nb\n") == "---\ntype: gotcha\n---\nb\n")
+        // Different keys stay apart.
+        #expect(OKFrontmatter.duplicateKeys("---\nproject: a\n\"project \": b\nprojects: c\n'Project': d\n---\n") == [])
+    }
+
+    @Test func keyFormsThisParserCannotReadAreRefused() {
+        for line in ["? project\n: outro", "{project: outro}", "&a project: outro", "*a : outro", "!!str project: outro",
+                     "<<: {project: outro}", "\"proj\\qct\": outro", "\"project: outro", "'project: outro",
+                     "\"project\"x: outro", "project", "project:outro", "proj #c: outro", "[project]: outro", "\"\\x+1\": outro"] {
+            let md = "---\ntitle: A\nproject: p5\n\(line)\n---\nb\n"
+            #expect(!OKFrontmatter.isWellFormed(md), "\(line)")
+        }
+        #expect(!OKFrontmatter.isWellFormed("sem frontmatter\n"))
+        #expect(!OKFrontmatter.isWellFormed("---\n- solto\ntitle: x\n---\n"))
+        // What the vault templates and the renderer actually write stays accepted.
+        let good = "---\ntitle: 'TODO — título'\ndescription: \"Linha um\n  continua\"\n# comentário\n\ntemplate:\n  title: T\ntags:\n- a\n  - b\nurl: http://x.y/z\na:b: c\n-x: y\n---\nb\n"
+        #expect(OKFrontmatter.isWellFormed(good))
+        #expect(OKFrontmatter.scalar("a:b", in: good) == "c" && OKFrontmatter.scalar("url", in: good) == "http://x.y/z")
+        #expect(OKFrontmatter.isWellFormed("---\n---\nb\n"))
+    }
+
     @Test func removingDropsEveryOccurrenceAndDuplicatesIgnoreNestedKeys() {
         #expect(OKFrontmatter.removing("template", in: "---\ntemplate:\n  title: T\ntitle: x\ntemplate: y\n---\nb\n") == "---\ntitle: x\n---\nb\n")
         // Nested keys, list items, comments and the body don't count as duplicates.
