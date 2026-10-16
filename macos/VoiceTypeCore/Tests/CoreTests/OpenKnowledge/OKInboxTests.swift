@@ -204,7 +204,7 @@ struct OKInboxTests {
             let daily = try OKInbox.appendToDaily("anterior", at: date, to: vault, timeZone: utc)
             let before = try String(contentsOf: daily, encoding: .utf8)
             var attempts = 0
-            try OKInbox.appendToDaily("nova", at: date, to: vault, timeZone: utc, beforeRename: { _ in
+            _ = try OKInbox.appendToDaily("nova", at: date, to: vault, timeZone: utc, beforeRename: { _ in
                 attempts += 1
                 if attempts == 1 {
                     try Data((before + "\nEdição manual concorrente\n").utf8).write(to: daily, options: atomic ? .atomic : [])
@@ -224,7 +224,7 @@ struct OKInboxTests {
         let daily = OKInbox.dailyURL(in: vault, for: date, timeZone: utc)
         let manual = "---\ntitle: Diário manual\n---\n\nEscrito à mão.\n"
         var attempts = 0
-        try OKInbox.appendToDaily("nova", at: date, to: vault, timeZone: utc, beforeRename: { _ in
+        _ = try OKInbox.appendToDaily("nova", at: date, to: vault, timeZone: utc, beforeRename: { _ in
             attempts += 1
             if attempts == 1 { try Data(manual.utf8).write(to: daily) }
         })
