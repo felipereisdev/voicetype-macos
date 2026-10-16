@@ -211,7 +211,7 @@ public struct OKVaultWriter: Sendable {
         do {
             try fm.createDirectory(at: staging, withIntermediateDirectories: true)
             for p in planned {
-                let op = Journal.Op(
+                var op = Journal.Op(
                     index: p.index, kind: p.kind, path: p.path, itemID: p.itemID,
                     tmp: "tmp-\(p.index)",
                     preimage: p.kind == .update ? "pre-\(p.index)" : nil,
@@ -221,6 +221,7 @@ public struct OKVaultWriter: Sendable {
                     createdDirs: Self.missingDirectories(of: p.path, root: root)
                 )
                 try OKDurableFile.write(p.content, to: staging.appendingPathComponent(op.tmp))
+                op.tmpInode = try OKVaultTransaction.inode(staging.appendingPathComponent(op.tmp))
                 try OKDurableFile.write(p.content, to: staging.appendingPathComponent(op.copy))
                 journal.ops.append(op)
             }
@@ -333,29 +334,29 @@ public struct OKVaultWriter: Sendable {
     }
 
     /// After the app finalized its local state: deletes the staging files
-    /// that hold our content or the approved original, moves any other
-    /// version to `.ok/local/voicetype-preserved/<txid>/` (returned), and
-    /// deletes the journal. Does nothing unless the journal is `committed`.
+    /// that hold our content or the approved original and were never in a
+    /// destination, moves every other one to
+    /// `.ok/local/voicetype-preserved/<txid>/`, and deletes the journal. The
+    /// moved files that hold neither version are returned. Does nothing
+    /// unless the journal is `committed`.
     @discardableResult
-    public static func finish(journalDirectory: URL) throws -> [OKDivergence] {
+    public static func finish(
+        journalDirectory: URL,
+        fault: (@Sendable (OKFaultPoint) throws -> Void)? = nil
+    ) throws -> [OKDivergence] {
         guard let journal = try Journal.load(from: journalDirectory), journal.phase == .committed else { return [] }
-        let tx = OKVaultTransaction(journal: journal, journalDirectory: journalDirectory, fault: nil)
-        let preserved = URL(fileURLWithPath: journal.vault.root, isDirectory: true)
-            .appendingPathComponent(".ok/local/voicetype-preserved/\(journal.txid.uuidString)", isDirectory: true)
-        let fm = FileManager.default
+        let tx = OKVaultTransaction(journal: journal, journalDirectory: journalDirectory, fault: fault)
         var kept: [OKDivergence] = []
         for file in try tx.inventory() {
             guard let hash = try OKVaultTransaction.hash(file.url) else { continue }
-            if file.allowed.contains(hash) {
-                try fm.removeItem(at: file.url)
-            } else {
-                try fm.createDirectory(at: preserved, withIntermediateDirectories: true)
-                let target = preserved.appendingPathComponent(file.url.lastPathComponent)
-                try fm.moveItem(at: file.url, to: target)
-                kept.append(OKDivergence(path: file.path, preservedCopy: target.path, reason: OKVaultTransaction.foreignReason))
+            let ours = file.allowed.contains(hash)
+            if ours { try tx.runFault(.cleanupBeforeDelete(file.url.lastPathComponent)) }
+            if ours, !file.mayBeOpen {
+                try FileManager.default.removeItem(at: file.url)
+            } else if let divergence = try tx.preserve(file) {
+                kept.append(divergence)
             }
         }
-        if !kept.isEmpty { try OKDurableFile.syncDirectory(preserved) }
         try tx.removeEmptyStaging()
         try tx.removeJournal()
         return kept
@@ -447,6 +448,9 @@ extension OKVaultWriter {
             /// The version a `swappedOverForeign` repair put back, recorded
             /// before the repair. Never E nor N.
             var foreignPreimageHash: String?
+            /// The inode `tmp` was created with: a `tmp` with another one
+            /// came out of the destination.
+            var tmpInode: UInt64?
             var newHash: String
             var expectedHash: String?
             var createdDirs: [String]
@@ -515,6 +519,9 @@ final class OKVaultTransaction {
         var url: URL
         var path: String
         var allowed: Set<String>
+        /// The file was in a destination, so someone may still write through
+        /// a descriptor they opened there: it's moved, never deleted.
+        var mayBeOpen: Bool
     }
 
     static let foreignReason = "Versão escrita por outro processo durante a gravação, guardada em vez de apagada."
@@ -590,6 +597,15 @@ final class OKVaultTransaction {
             throw OKDurableFile.posixError()
         }
         return OKPath.contentHash(try Data(contentsOf: url))
+    }
+
+    static func inode(_ url: URL) throws -> UInt64? {
+        var info = stat()
+        guard lstat(url.path, &info) == 0 else {
+            if errno == ENOENT || errno == ENOTDIR { return nil }
+            throw OKDurableFile.posixError()
+        }
+        return UInt64(info.st_ino)
     }
 
     func dst(_ op: Journal.Op) -> URL { root.appendingPathComponent(op.path) }
@@ -804,12 +820,15 @@ final class OKVaultTransaction {
 
     /// The cleanup of a `rolledBack` journal, idempotent and never touching
     /// a destination: removes the folders the transaction created that are
-    /// empty and deletes the staging files that are ours or the approved
-    /// original. Every attempt re-reads the staging: a file that changed
-    /// since the rollback (written through a descriptor someone kept) is an
-    /// outside version, recorded in the journal before going on and never
-    /// deleted. The staging folder is only removed empty; with an outside
-    /// version left, the journal becomes `rolledBackWithDivergences`.
+    /// empty, deletes the staging files that are ours or the approved
+    /// original and were never in a destination, and moves the ones that
+    /// were (`mayBeOpen`) to `.ok/local/voicetype-preserved/<txid>/`. Every
+    /// attempt re-reads the staging: a file that changed since the rollback
+    /// (written through a descriptor someone kept) is an outside version,
+    /// recorded in the journal before going on and never deleted; so is a
+    /// moved file that no longer holds what it held when it was read. The
+    /// staging folder is only removed empty; with an outside version left,
+    /// the journal becomes `rolledBackWithDivergences`.
     func finishRollback() throws -> Outcome {
         for dir in Set(journal.ops.flatMap(\.createdDirs)).sorted(by: { $0.count > $1.count }) {
             rmdir(root.appendingPathComponent(dir).path)
@@ -819,7 +838,13 @@ final class OKVaultTransaction {
             guard let hash = try Self.hash(file.url) else { continue }
             if file.allowed.contains(hash) {
                 try runFault(.cleanupBeforeDelete(file.url.lastPathComponent))
-                try fm.removeItem(at: file.url)
+                if !file.mayBeOpen {
+                    try fm.removeItem(at: file.url)
+                } else if let divergence = try preserve(file) {
+                    divergences.append(divergence)
+                    journal.divergences = divergences
+                    try saveJournal()
+                }
             } else if !divergences.contains(where: { $0.preservedCopy == file.url.path }) {
                 divergences.append(OKDivergence(path: file.path, preservedCopy: file.url.path, reason: Self.foreignReason))
                 journal.divergences = divergences
@@ -1019,28 +1044,45 @@ final class OKVaultTransaction {
 
     /// Every file in the staging folder, with the hashes that make it safe
     /// to delete: N or E of its op, the snapshot hash of a dependency, none
-    /// for a file the journal doesn't know.
+    /// for a file the journal doesn't know. A destination's inode only ever
+    /// comes out into `pre`, `removed` or (swapped, not yet moved to `pre`)
+    /// `tmp`; `copy`, `restore` and the dependency files are always ours.
     func inventory() throws -> [StagingFile] {
         var files: [StagingFile] = []
         var known = Set<String>()
         for op in journal.ops {
             let allowed = Set([op.newHash] + (op.expectedHash.map { [$0] } ?? []))
-            for name in [op.tmp, op.preimage, op.removed, op.copy, op.restore].compactMap({ $0 }) {
+            let swappedTmp = try Self.inode(file(op.tmp)).map { $0 != op.tmpInode } ?? false
+            let names: [(String?, Bool)] = [(op.tmp, swappedTmp), (op.preimage, true), (op.removed, true), (op.copy, false), (op.restore, false)]
+            for case let (name?, mayBeOpen) in names {
                 known.insert(name)
-                files.append(StagingFile(url: file(name), path: op.path, allowed: allowed))
+                files.append(StagingFile(url: file(name), path: op.path, allowed: allowed, mayBeOpen: mayBeOpen))
             }
         }
         for dep in journal.dependencies {
             for name in [dep.snapshot, dep.restore] {
                 known.insert(name)
-                files.append(StagingFile(url: file(name), path: dep.path, allowed: [dep.snapshotHash]))
+                files.append(StagingFile(url: file(name), path: dep.path, allowed: [dep.snapshotHash], mayBeOpen: false))
             }
         }
         let names = (try? fm.contentsOfDirectory(atPath: staging.path)) ?? []
         for name in names.sorted() where !known.contains(name) {
-            files.append(StagingFile(url: file(name), path: name, allowed: []))
+            files.append(StagingFile(url: file(name), path: name, allowed: [], mayBeOpen: false))
         }
         return files
+    }
+
+    /// Moves a staging file to `.ok/local/voicetype-preserved/<txid>/`, on
+    /// disk before returning; a divergence when what was moved is neither
+    /// ours nor the approved original.
+    func preserve(_ file: StagingFile) throws -> OKDivergence? {
+        let preserved = root.appendingPathComponent(".ok/local/voicetype-preserved/\(journal.txid.uuidString)", isDirectory: true)
+        try fm.createDirectory(at: preserved, withIntermediateDirectories: true)
+        let target = preserved.appendingPathComponent(file.url.lastPathComponent)
+        guard try move(file.url, target, RENAME_EXCL) else { throw OKDurableFile.posixError(EEXIST) }
+        try sync(target, file.url)
+        guard let hash = try Self.hash(target), !file.allowed.contains(hash) else { return nil }
+        return OKDivergence(path: file.path, preservedCopy: target.path, reason: Self.foreignReason)
     }
 
     /// The staging files holding an outside version (neither ours nor the

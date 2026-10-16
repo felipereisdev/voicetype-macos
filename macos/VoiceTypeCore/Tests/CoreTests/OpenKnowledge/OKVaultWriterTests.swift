@@ -1134,6 +1134,67 @@ struct OKVaultWriterTests {
         #expect(snapshot(vault) == original)
     }
 
+    @Test func artifactWrittenDuringRollbackCleanupIsPreserved() throws {
+        // As above, but the editor writes after the cleanup read pre-0 as our N.
+        let vault = try makeVault(["b.md": "A\n"])
+        let original = snapshot(vault)
+        let journal = newJournal()
+        var writer = try makeWriter(vault, journal)
+        writer.fault = { if $0 == .afterApply(0) { throw OKSimulatedCrash() } }
+        #expect(throws: OKSimulatedCrash.self) { try writer.commit(updateThenCreate, receipt: try receipt(vault), precondition: { true }) }
+        let txid = try #require(try OKVaultWriter.Journal.load(from: journal)?.txid)
+
+        let editor = try FileHandle(forUpdating: vault.appendingPathComponent("b.md"))
+        defer { try? editor.close() }
+        let outcome = try OKVaultWriter.recover(journalDirectory: journal, fault: { point in
+            if point == .cleanupBeforeDelete("pre-0") {
+                try editor.truncate(atOffset: 0)
+                try editor.write(contentsOf: Data("X\n".utf8))
+                try editor.synchronize()
+            }
+        })
+        guard case let .rolledBack(conflicts, divergences) = outcome else {
+            Issue.record("esperava .rolledBack, veio \(outcome)")
+            return
+        }
+        #expect(conflicts == [])
+        #expect(divergences.map(\.path) == ["b.md"])
+        let copy = try #require(divergences.first?.preservedCopy)
+        #expect(copy.hasSuffix(".ok/local/voicetype-preserved/\(txid.uuidString)/pre-0"))
+        #expect(contents(copy) == "X\n")
+        #expect(try phase(journal) == .rolledBackWithDivergences)
+        #expect(try OKVaultWriter.recover(journalDirectory: journal) == .rolledBack(conflicts: [], divergences: divergences))
+        #expect(snapshot(vault) == original)
+    }
+
+    @Test func unchangedArtifactIsRetainedByRollbackCleanup() throws {
+        // Control: nothing written during the cleanup. pre-0 still leaves the
+        // staging by a rename, so a later write through the descriptor survives.
+        let vault = try makeVault(["b.md": "A\n"])
+        let original = snapshot(vault)
+        let journal = newJournal()
+        var writer = try makeWriter(vault, journal)
+        writer.fault = { if $0 == .afterApply(0) { throw OKSimulatedCrash() } }
+        #expect(throws: OKSimulatedCrash.self) { try writer.commit(updateThenCreate, receipt: try receipt(vault), precondition: { true }) }
+        let txid = try #require(try OKVaultWriter.Journal.load(from: journal)?.txid)
+
+        let editor = try FileHandle(forUpdating: vault.appendingPathComponent("b.md"))
+        defer { try? editor.close() }
+        #expect(try OKVaultWriter.recover(journalDirectory: journal) == .rolledBack(conflicts: [], divergences: []))
+        #expect(try phase(journal) == nil)
+        #expect(stagingEntries(vault).isEmpty)
+        #expect(snapshot(vault) == original)
+        let preserved = vault.appendingPathComponent(".ok/local/voicetype-preserved/\(txid.uuidString)")
+        #expect(try FileManager.default.contentsOfDirectory(atPath: preserved.path) == ["pre-0"])
+        #expect(contents(preserved.appendingPathComponent("pre-0").path) == "B\n")
+
+        try editor.truncate(atOffset: 0)
+        try editor.write(contentsOf: Data("Y\n".utf8))
+        try editor.synchronize()
+        #expect(contents(preserved.appendingPathComponent("pre-0").path) == "Y\n")
+        #expect(text(vault, "b.md") == "A\n")
+    }
+
     @Test func rollbackConflictsSurviveInterruptedCleanup() throws {
         let vault = try makeVault(["b.md": "A\n"])
         let journal = newJournal()
@@ -1327,6 +1388,43 @@ struct OKVaultWriterTests {
         #expect(try phase(journal) == nil)
         #expect(text(vault, "b.md") == "B\n")
         #expect(try OKVaultWriter.finish(journalDirectory: journal) == [])
+    }
+
+    @Test func finishPreservesArtifactWrittenDuringCleanup() throws {
+        // An editor opened b.md before the commit; the swap moves that inode (E) to pre-0.
+        for writes in [true, false] {
+            let vault = try makeVault(["b.md": "A\n"])
+            let journal = newJournal()
+            let editor = try FileHandle(forUpdating: vault.appendingPathComponent("b.md"))
+            defer { try? editor.close() }
+            let result = try makeWriter(vault, journal).commit(
+                [.update(path: "b.md", content: "B\n", expectedHash: h("A\n"), itemID: nil)],
+                receipt: try receipt(vault), precondition: { true }
+            )
+            #expect(receiptOf(result) != nil)
+            let txid = try #require(try OKVaultWriter.Journal.load(from: journal)?.txid)
+            let preserved = vault.appendingPathComponent(".ok/local/voicetype-preserved/\(txid.uuidString)")
+
+            let kept = try OKVaultWriter.finish(journalDirectory: journal, fault: { point in
+                if writes, point == .cleanupBeforeDelete("pre-0") {
+                    try editor.truncate(atOffset: 0)
+                    try editor.write(contentsOf: Data("X\n".utf8))
+                    try editor.synchronize()
+                }
+            })
+            if writes {
+                #expect(kept.map(\.path) == ["b.md"])
+                #expect(kept.first?.preservedCopy == preserved.appendingPathComponent("pre-0").path)
+                #expect(contents(preserved.appendingPathComponent("pre-0").path) == "X\n")
+            } else {
+                #expect(kept == [])
+                #expect(contents(preserved.appendingPathComponent("pre-0").path) == "A\n")
+            }
+            #expect(try FileManager.default.contentsOfDirectory(atPath: preserved.path) == ["pre-0"])
+            #expect(stagingEntries(vault).isEmpty)
+            #expect(try phase(journal) == nil)
+            #expect(text(vault, "b.md") == "B\n")
+        }
     }
 
     @Test func recoverUsesJournalVaultNotCurrentConfig() throws {
