@@ -554,6 +554,39 @@ final class ApprovalViewModelTests: XCTestCase {
         XCTAssertEqual(brokenRelativeLinks(vault), [])
     }
 
+    func testNewProjectConfirmedAgainAfterBackIsStillCreated() async throws {
+        let vault = try makeVault()
+        try await useVault(vault)
+        let fake = FakeAssistant()
+        let (dir, _) = try await seedBuilt(assistant: fake, vault: vault)
+        let vm = makeVM(dir, assistant: fake)
+        await vm.load()
+        try await vm.createProject(slug: "acme", description: "Acme")
+        XCTAssertEqual(vm.session?.current, .record)
+
+        // Back to the project step and "Aprovar" again, as the window does.
+        vm.back()
+        XCTAssertEqual(vm.session?.current, .project)
+        await vm.choose("acme")
+        XCTAssertEqual(vm.session?.progress.newProject, OKNewProject(slug: "acme", description: "Acme"))
+        XCTAssertEqual(OKApprovalProgress.load(dir)?.newProject, OKNewProject(slug: "acme", description: "Acme"))
+        XCTAssertEqual(vm.session?.current, .project)
+        vm.approve()
+        vm.approve()
+        XCTAssertEqual(vm.session?.isFinished, true)
+
+        let ok = await vm.commit()
+        XCTAssertTrue(ok, vm.banner ?? "")
+        let index = try XCTUnwrap(text("acme/index.md", in: vault))
+        XCTAssertTrue(index.contains("type: indice"), index)
+        XCTAssertTrue(try XCTUnwrap(text("README.md", in: vault)).contains("./acme/index.md"))
+        for file in OKProjectScaffold.folderMetadata(project: "acme") {
+            XCTAssertEqual(text(file.path, in: vault), file.content, file.path)
+        }
+        XCTAssertEqual(try OKVaultCatalog.projects(in: vault).map(\.slug), ["acme", "p5"])
+        XCTAssertEqual(brokenRelativeLinks(vault), [])
+    }
+
     func testDistillationUnavailableAtCommitAllowsRecordOnly() async throws {
         let vault = try makeVault()
         try await useVault(vault)

@@ -169,7 +169,9 @@ final class ApprovalViewModel {
     func choose(_ slug: String) async {
         guard !isBlocked, var s = session else { return }
         do {
-            try s.chooseProject(slug)
+            // Confirming again the project created here keeps it new: only
+            // choosing another project drops its description and scaffolding.
+            if s.progress.newProject?.slug != slug { try s.chooseProject(slug) }
         } catch {
             banner = (error as? OKApprovalSession.ProjectError).map(ApprovalStrings.projectError) ?? error.localizedDescription
             return
