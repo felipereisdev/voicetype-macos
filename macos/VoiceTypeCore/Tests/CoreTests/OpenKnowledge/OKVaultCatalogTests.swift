@@ -76,6 +76,18 @@ struct OKVaultCatalogTests {
         #expect(try OKVaultCatalog.docs(project: "p5", in: vault).isEmpty)
     }
 
+    @Test func repeatedKeysReadAsMissing() throws {
+        let vault = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault) }
+        try write("---\ntype: indice\ntitle: P5\ntype: indice\n---\n", "p5/index.md", in: vault)
+        try write("---\ntype: indice\ntitle: A\ntitle: B\n---\n", "p6/index.md", in: vault)
+        try write("---\ntitle: A\ndescription: X\ntitle: B\ndescription: Y\n---\n", "p6/decisoes/dup.md", in: vault)
+
+        #expect(try OKVaultCatalog.projects(in: vault) == [OKProject(slug: "p6", title: "p6", description: "")])
+        let docs = try OKVaultCatalog.docs(project: "p6", in: vault)
+        #expect(docs.map(\.title) == ["dup"] && docs.map(\.description) == [""])
+    }
+
     @Test func fingerprintChangesWithAnyDocHash() {
         let a = OKDocEntry(path: "p5/decisoes/a.md", type: .decisao, title: "A", description: "", hash: "1")
         let b = OKDocEntry(path: "p5/gotchas/b.md", type: .gotcha, title: "B", description: "", hash: "2")
@@ -101,6 +113,13 @@ struct OKVaultCatalogTests {
         #expect(t.contains("date: '2026-10-16'") && t.contains("Autor: Felipe Reis") && !t.contains("{{"))
         #expect(t.hasPrefix("---\ntitle: 'TODO — título da decisão'\n"))
         #expect(OKFrontmatter.scalar("type", in: t) == "decisao")
+    }
+
+    @Test func templateDropsEveryTemplateBlock() throws {
+        let vault = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault) }
+        try write("---\ntemplate:\n  title: A\ntitle: TODO\ntemplate:\n  title: B\n---\nb\n", ".ok/templates/termo.md", in: vault)
+        #expect(try OKTemplate.load(.termo, vault: vault, date: date, user: "u", timeZone: utc) == "---\ntitle: TODO\n---\nb\n")
     }
 
     @Test func templateDateFollowsTimeZone() throws {

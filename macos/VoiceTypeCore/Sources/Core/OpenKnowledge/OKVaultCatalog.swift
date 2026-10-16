@@ -38,7 +38,9 @@ public struct OKDocEntry: Codable, Equatable, Sendable {
 public enum OKVaultCatalog {
     /// Root folders with an `index.md` of `type: indice` and a valid slug,
     /// sorted by slug. Hidden (`.ok/`) and `_`-prefixed (`_inbox/`) folders
-    /// are never projects. A missing `title` falls back to the slug.
+    /// are never projects. A missing `title` falls back to the slug. A
+    /// repeated key is ambiguous and reads as missing (`OKFrontmatter.scalar`),
+    /// so an index with `type` twice is not a project.
     public static func projects(in vault: URL, fileManager: FileManager = .default) throws -> [OKProject] {
         try children(of: vault, fileManager: fileManager)
             .filter { !$0.lastPathComponent.hasPrefix("_") && isDirectory($0) && OKSlug.isValid($0.lastPathComponent) }
@@ -55,8 +57,8 @@ public enum OKVaultCatalog {
     }
 
     /// The `.md` files directly inside the project's seven type folders
-    /// (no subfolders, no hidden files), sorted by path. A missing `title`
-    /// falls back to the file name without extension.
+    /// (no subfolders, no hidden files), sorted by path. A missing or
+    /// repeated `title` falls back to the file name without extension.
     public static func docs(project: String, in vault: URL, fileManager: FileManager = .default) throws -> [OKDocEntry] {
         var docs: [OKDocEntry] = []
         for type in OKKnowledgeType.allCases {
@@ -108,7 +110,7 @@ public enum OKVaultCatalog {
 
 /// The vault's own templates (`.ok/templates/<type>.md`), read at run time.
 public enum OKTemplate {
-    /// The template with its `template:` block dropped, `{{date}}` as
+    /// The template with every `template:` block dropped, `{{date}}` as
     /// `yyyy-MM-dd` in `timeZone` and `{{user}}` as `user`. The other
     /// `TODO`s stay for the model to fill. Missing template →
     /// `CocoaError(.fileReadNoSuchFile)`.
