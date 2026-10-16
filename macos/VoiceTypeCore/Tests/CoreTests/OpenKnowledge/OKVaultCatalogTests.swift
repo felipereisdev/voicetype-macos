@@ -82,10 +82,15 @@ struct OKVaultCatalogTests {
         try write("---\ntype: indice\ntitle: P5\ntype: indice\n---\n", "p5/index.md", in: vault)
         try write("---\ntype: indice\ntitle: A\ntitle: B\n---\n", "p6/index.md", in: vault)
         try write("---\ntitle: A\ndescription: X\ntitle: B\ndescription: Y\n---\n", "p6/decisoes/dup.md", in: vault)
+        // Quoted or spaced spellings are the same key: repeated, and read when alone.
+        try write("---\ntype: indice\n\"type\": indice\n---\n", "p7/index.md", in: vault)
+        try write("---\n'type' : indice\n\"title\": Oito\n---\n", "p8/index.md", in: vault)
+        try write("---\ntitle: A\n'title': B\n---\n", "p6/gotchas/quoted.md", in: vault)
 
-        #expect(try OKVaultCatalog.projects(in: vault) == [OKProject(slug: "p6", title: "p6", description: "")])
+        #expect(try OKVaultCatalog.projects(in: vault) == [OKProject(slug: "p6", title: "p6", description: ""),
+                                                          OKProject(slug: "p8", title: "Oito", description: "")])
         let docs = try OKVaultCatalog.docs(project: "p6", in: vault)
-        #expect(docs.map(\.title) == ["dup"] && docs.map(\.description) == [""])
+        #expect(docs.map(\.title) == ["dup", "quoted"] && docs.map(\.description) == ["", ""])
     }
 
     @Test func fingerprintChangesWithAnyDocHash() {
@@ -118,7 +123,7 @@ struct OKVaultCatalogTests {
     @Test func templateDropsEveryTemplateBlock() throws {
         let vault = try makeVault()
         defer { try? FileManager.default.removeItem(at: vault) }
-        try write("---\ntemplate:\n  title: A\ntitle: TODO\ntemplate:\n  title: B\n---\nb\n", ".ok/templates/termo.md", in: vault)
+        try write("---\ntemplate:\n  title: A\ntitle: TODO\ntemplate:\n  title: B\n'template' :\n  title: C\n---\nb\n", ".ok/templates/termo.md", in: vault)
         #expect(try OKTemplate.load(.termo, vault: vault, date: date, user: "u", timeZone: utc) == "---\ntitle: TODO\n---\nb\n")
     }
 
