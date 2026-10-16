@@ -41,8 +41,9 @@ struct OKApprovalFinalizerTests {
             meetingID: meetingID, note: note, vault: try OKVaultIdentity.of(vault), suggestedProject: "p5", project: "p5", paths: paths,
             items: [
                 OKProposedItem(action: .new, type: .decisao, path: "p5/decisoes/usar-fila.md", title: "Usar fila",
-                               markdown: "---\ntitle: Usar fila\n---\n# Usar fila\n"),
-                OKProposedItem(action: .update, type: .gotcha, path: gotchaPath, title: "G", markdown: "# G novo\n",
+                               markdown: "---\ntitle: Usar fila\ndescription: d\ntype: decisao\nproject: p5\n---\n# Usar fila\n"),
+                OKProposedItem(action: .update, type: .gotcha, path: gotchaPath, title: "G",
+                               markdown: "---\ntitle: G\ndescription: d\ntype: gotcha\nproject: p5\n---\n# G novo\n",
                                baseHash: h("old gotcha\n"), baseContent: "old gotcha\n"),
             ]
         )

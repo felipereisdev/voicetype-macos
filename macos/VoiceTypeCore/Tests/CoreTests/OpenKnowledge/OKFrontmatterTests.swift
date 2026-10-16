@@ -120,4 +120,77 @@ struct OKFrontmatterTests {
         #expect(OKFrontmatter.setting("title", to: "y", in: "---\ntemplate:\n  title: T\n---\nb\n") == "---\ntemplate:\n  title: T\ntitle: y\n---\nb\n")
         #expect(!OKFrontmatter.containsTODO("# TODO\n"))
     }
+
+    @Test func invalidYAMLValuesAreNotWellFormed() {
+        let doc = { (line: String) in "---\n\(line)\ndescription: d\ntype: decisao\n---\nCorpo\n" }
+        let invalid = [
+            "title: Fila: jobs", "title: \"Fila", "title: 'Fila", "title: \"Fila\" x", "title: \"a\\q\"",
+            "tags: [fila", "tags: [a, [b]]", "tags: [a, ]", "tags: {a: 1}", "tags: [a: b]",
+            "title: &x Fila", "title: *x", "title: !str Fila", "title: Fila # nota", "title: - Fila",
+            "title: |2\n   Fila", "title: |\n    Fila\n  jobs", "title: Fila\n  jobs: x",
+            "template:\n  title: T\n bad: x", "template:\n  title: T\n  title: U", "tags:\n  - a\n - b",
+            "title: Fila\tjobs", "title: Fila\u{2028}jobs",
+        ]
+        for line in invalid {
+            #expect(!OKFrontmatter.isWellFormed(doc(line)), "\(line)")
+        }
+        let valid = [
+            "title: \"Fila: jobs\"", "title: 'Fila: jobs'", "title: Fila de jobs", "title: Fila\n  de jobs",
+            "title: \"Fila\n  de jobs\"", "title: >-\n  Fila\n  de jobs", "title:\n  Fila de jobs",
+            "tags: [fila, 'a: b']", "tags: []", "tags:\n  - fila\n  - adr", "tags:\n- fila\n- adr",
+            "links:\n  - title: A\n    path: ./a.md\n  - b", "url: http://x.y/z", "url: \"http://x.y/z\"  # nota",
+        ]
+        for line in valid {
+            #expect(OKFrontmatter.isWellFormed(doc(line)), "\(line)")
+        }
+    }
+
+    @Test func vaultTemplateFrontmatterIsWellFormed() {
+        let template = """
+        ---
+        template:
+          title: Decisão (ADR)
+          description: "Registro de decisão arquitetural: contexto →
+            consequências → alternativas."
+          tags:
+            - decisao
+            - adr
+        title: 'Usar fila'
+        description: 'Fila para os jobs'
+        type: decisao
+        project: p5
+        status: proposta
+        date: '2026-10-16'
+        deciders: []
+        supersedes: ''
+        tags: [decisao, adr]
+        ---
+
+        # Usar fila
+
+        """
+        #expect(OKFrontmatter.isWellFormed(template))
+        #expect(OKFrontmatter.isValidDocument(template))
+    }
+
+    @Test func validDocumentNeedsStringTitleDescriptionTypeAndStringTags() {
+        let doc = { (fields: String) in "---\n\(fields)\n---\nCorpo\n" }
+        #expect(OKFrontmatter.isValidDocument(doc("title: Fila\ndescription: d\ntype: decisao\ntags: [a, b]")))
+        #expect(OKFrontmatter.isValidDocument(doc("title: '2024'\ndescription: d\ntype: decisao")))
+        for fields in [
+            "description: d\ntype: decisao",
+            "title: Fila\ntype: decisao",
+            "title: Fila\ndescription: d",
+            "title: [Fila]\ndescription: d\ntype: decisao",
+            "title:\n  a: b\ndescription: d\ntype: decisao",
+            "title: 2024\ndescription: d\ntype: decisao",
+            "title: Fila\ndescription: yes\ntype: decisao",
+            "title: Fila\ndescription:\ntype: decisao",
+            "title: Fila\ndescription: 2026-10-16\ntype: decisao",
+            "title: Fila\ndescription: d\ntype: decisao\ntags: decisao",
+            "title: Fila\ndescription: d\ntype: decisao\ntags: [a, 1]",
+        ] {
+            #expect(!OKFrontmatter.isValidDocument(doc(fields)), "\(fields)")
+        }
+    }
 }

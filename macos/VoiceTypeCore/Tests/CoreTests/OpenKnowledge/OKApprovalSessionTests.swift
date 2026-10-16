@@ -281,6 +281,39 @@ struct OKApprovalSessionTests {
         #expect(transcript.contains("Novo título — transcrição"))
     }
 
+    @Test func commitOpsRefuseEditsWithInvalidFrontmatter() throws {
+        let vault = try makeVault()
+        defer { try? fm.removeItem(at: vault) }
+        let p = proposal(vault: vault)
+        var s = session(p)
+        s.approve()
+        s.approve()
+        let item = s.markdown(for: .item(item1ID))
+        s.edit(item.replacingOccurrences(of: "title: Usar fila", with: "title: Usar fila: agora"))
+        s.approve()
+        s.approve()
+        #expect(s.canCommit)
+        #expect(throws: OKApprovalSession.CommitError.invalidFrontmatter(p.items[0].path)) { try s.commitOps(vault: vault, now: date) }
+        #expect(OKApprovalSession.CommitError.invalidFrontmatter(p.items[0].path).localizedDescription.contains(p.items[0].path))
+
+        s.back()
+        s.back()
+        s.edit(item.replacingOccurrences(of: "title: Usar fila", with: "title: \"Usar fila: agora\""))
+        s.approve()
+        s.approve()
+        #expect(try s.commitOps(vault: vault, now: date).contains { $0.path == p.items[0].path })
+
+        // The record too: its edit is what the vault gets.
+        var r = session(p)
+        r.approve()
+        r.edit(r.markdown(for: .record).replacingOccurrences(of: "type: reuniao", with: "type: [reuniao"))
+        r.approve()
+        r.approve()
+        r.approve()
+        let record = try #require(p.paths?.record)
+        #expect(throws: OKApprovalSession.CommitError.invalidFrontmatter(record)) { try r.commitOps(vault: vault, now: date) }
+    }
+
     @Test func commitOpsRefuseAnotherVault() throws {
         let a = try makeVault()
         let b = try makeVault()

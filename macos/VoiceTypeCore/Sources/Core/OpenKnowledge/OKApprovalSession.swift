@@ -87,8 +87,15 @@ public struct OKApprovalSession: Equatable, Sendable {
         case invalidSlug, alreadyExists, emptyDescription, projectLocked
     }
 
-    public enum CommitError: Error, Equatable {
+    public enum CommitError: Error, Equatable, LocalizedError {
         case vaultMismatch, noPaths, notReady
+        /// The final Markdown for this vault path fails `OKFrontmatter.isValidDocument`.
+        case invalidFrontmatter(String)
+
+        public var errorDescription: String? {
+            guard case let .invalidFrontmatter(path) = self else { return nil }
+            return "O frontmatter de \(path) não é YAML válido ou não tem title, description e type como texto. Corrija no Editor antes de gravar."
+        }
     }
 
     public private(set) var proposal: MeetingProposal
@@ -375,12 +382,14 @@ public struct OKApprovalSession: Equatable, Sendable {
             }
             let links = approved.map { OKDistilledLink(title: title(of: $0), path: $0.path) }
             let record = OKMeetingRenderer.appendingDistilled(links, to: markdown(for: .record, timeZone: tz), paths: paths)
+            guard OKFrontmatter.isValidDocument(record) else { throw CommitError.invalidFrontmatter(paths.record) }
             ops.append(Self.write(paths.record, record, expected: proposal.existingRecordHash, itemID: nil))
         }
 
         for item in approved {
-            ops.append(Self.write(item.path, markdown(for: .item(item.id)),
-                                  expected: item.action == .update ? item.baseHash : nil, itemID: item.id))
+            let content = markdown(for: .item(item.id))
+            guard OKFrontmatter.isValidDocument(content) else { throw CommitError.invalidFrontmatter(item.path) }
+            ops.append(Self.write(item.path, content, expected: item.action == .update ? item.baseHash : nil, itemID: item.id))
         }
 
         if created == nil, !indexLinks.isEmpty {

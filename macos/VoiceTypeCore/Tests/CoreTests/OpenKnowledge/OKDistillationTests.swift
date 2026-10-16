@@ -154,6 +154,15 @@ struct OKDistillationTests {
         #expect(kept.first.flatMap { OKFrontmatter.scalar("project", in: $0.markdown) } == "p5")
     }
 
+    @Test func writtenValidationDropsInvalidYAML() {
+        for title in ["Fila: jobs", "\"Fila", "'Fila", "Fila\ntags: [fila"] {
+            #expect(validate([.init(index: 1, markdown: newDecision(title: title))]).isEmpty, "\(title)")
+        }
+        #expect(validate([.init(index: 1, markdown: newDecision(title: "[Fila]"))]).isEmpty)
+        let quoted = validate([.init(index: 1, markdown: newDecision(title: "\"Fila: jobs\""))])
+        #expect(quoted.map(\.title) == ["Fila: jobs"])
+    }
+
     @Test func writtenValidationKeepsExistingSourceLinkAndFillsFontesSection() throws {
         let link = "../reunioes/2026-10-16-sprint-review.md"
         let cited = newDecision(body: "## Decisão\n\nVer [reunião](\(link)).\n")

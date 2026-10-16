@@ -135,8 +135,9 @@ public enum OKDistillation {
 
     /// Turns the model's Markdown into reviewable items. Dropped: an index
     /// outside the plan or repeated, no frontmatter, a frontmatter that isn't
-    /// well formed once `type`, `project` (and `status: aceita` for a new
-    /// decision) are forced, an empty `title`/`description`, a leftover
+    /// valid YAML with string `title`/`description`/`type` and a list of
+    /// `tags` (`OKFrontmatter.isValidDocument`) once `type`, `project` (and
+    /// `status: aceita` for a new decision) are forced, an empty `title`/`description`, a leftover
     /// `TODO`, or an update whose current content wasn't read. A body that
     /// doesn't link the record gets it under `## Fontes`.
     static func validateWritten(
@@ -155,7 +156,7 @@ public enum OKDistillation {
             if planned.action == .new, planned.type == .decisao {
                 md = OKFrontmatter.setting("status", to: "aceita", in: md)
             }
-            guard OKFrontmatter.isWellFormed(md), !OKFrontmatter.containsTODO(md),
+            guard OKFrontmatter.isValidDocument(md), !OKFrontmatter.containsTODO(md),
                   let title = nonBlank(OKFrontmatter.scalar("title", in: md)),
                   nonBlank(OKFrontmatter.scalar("description", in: md)) != nil else { continue }
             var base: String?

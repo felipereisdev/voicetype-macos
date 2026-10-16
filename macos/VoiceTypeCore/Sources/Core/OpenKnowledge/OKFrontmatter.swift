@@ -81,12 +81,14 @@ public enum OKFrontmatter {
 
     /// True when the document has a frontmatter whose every top-level line
     /// is a `key: …` this parser reads (or a comment, a blank line, or a list
-    /// item or indented line under a key) and no key repeats. Explicit `? `
-    /// keys, flow, anchored, aliased or tagged keys, `<<` merges, bad escapes
-    /// and stray scalars make it false: untrusted Markdown that fails this
-    /// after `setting` is refused, never written.
+    /// item or indented line under a key), no key repeats, and the whole of
+    /// it is YAML that `OKYAML` accepts. Explicit `? ` keys, flow, anchored,
+    /// aliased or tagged keys, `<<` merges, bad escapes, stray scalars and
+    /// invalid values (`title: Fila: jobs`, an unclosed quote or list) make
+    /// it false: untrusted Markdown that fails this after `setting` is
+    /// refused, never written.
     public static func isWellFormed(_ md: String) -> Bool {
-        guard let lines = fences(md)?.lines else { return false }
+        guard let lines = fences(md)?.lines, OKYAML.parse(lines.joined(separator: "\n")) != nil else { return false }
         var seen: Set<String> = []
         for line in lines {
             switch parseLine(line) {
@@ -101,6 +103,18 @@ public enum OKFrontmatter {
             }
         }
         return true
+    }
+
+    /// `isWellFormed`, with the fields an OpenKnowledge doc needs in their
+    /// YAML types: `title`, `description` and `type` strings, and `tags`,
+    /// when present, a list of strings.
+    public static func isValidDocument(_ md: String) -> Bool {
+        guard isWellFormed(md), let lines = fences(md)?.lines,
+              let yaml = OKYAML.parse(lines.joined(separator: "\n")),
+              ["title", "description", "type"].allSatisfy({ yaml.value($0)?.isString == true }) else { return false }
+        guard let tags = yaml.value("tags") else { return true }
+        guard case let .sequence(items) = tags else { return false }
+        return items.allSatisfy(\.isString)
     }
 
     /// True when the frontmatter (never the body) still holds a template `TODO`.
