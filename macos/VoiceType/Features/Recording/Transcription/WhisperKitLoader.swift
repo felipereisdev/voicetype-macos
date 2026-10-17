@@ -29,7 +29,7 @@ enum WhisperKitLoader {
             verbose: false, logLevel: .error,
             prewarm: false, load: false, download: false
         )
-        let kit = try await WhisperKit(config)
+        let kit = try await PromptSafeWhisperKit(config)
         try Task.checkCancellation()
         try await kit.loadModels()
         try Task.checkCancellation()

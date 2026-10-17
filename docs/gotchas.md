@@ -631,3 +631,17 @@ substituições, similaridade ≥0.5) descarta tudo.
 **Fix:** não usar notificação do sistema para prompt com ação. Painel próprio não-ativante (`MeetingPromptPanel`, padrão Granola/Wispr): `.nonactivatingPanel`, `level = .statusBar`, `[.canJoinAllSpaces, .fullScreenAuxiliary]`, `orderFrontRegardless()`; botões chamam o código direto.
 
 **Referência:** `MeetingPromptPanel` em `MeetingDetector.swift`; PRs #88, #89.
+
+## G-036 — Whisper large-v3 + `promptTokens` devolve texto vazio
+
+**Sintoma:** com vocabulário, o Turbo 632 MB (e os outros large-v3) cola vazio. Os tokens do segmento saem `[50258, 50267, 50360, 50365, 50257]` (`SOT, pt, transcribe, <|0.00|>, EOT`). O Small com o mesmo código funciona.
+
+**Reprodução:** WhisperKit 1.0.0, `openai_whisper-large-v3-v20240930_turbo_632MB`, `DecodingOptions(language: "pt", temperature: 0, usePrefillPrompt: true, detectLanguage: false, promptTokens: tokenizer.encode(text: "Redis, ConfigStore").filter { $0 < specialTokenBegin }, chunkingStrategy: .vad)` sobre qualquer fala em PT de ~5 s.
+
+**Hipóteses testadas:** nenhuma destas resolve: `chunkingStrategy: nil`, prompt com espaço inicial (`" Redis, ConfigStore"`), `sampleLength: 100`, `temperatureFallbackCount: 3`, `withoutTimestamps: true`, `firstTokenLogProbThreshold: nil`. `usePrefillPrompt: false` devolve texto, mas só porque pula o `prefillDecoderInputs` inteiro: o prompt é ignorado e o idioma deixa de ser forçado. O formato do prefill está certo (`<|startofprev|> Red is , ĠConfig St ore <|startoftranscript|> <|pt|> <|transcribe|> <|0.00|>`).
+
+**Causa:** o `TextDecoder.decodeText` do WhisperKit 1.0.0 encerra o segmento quando o sampler prevê EOT, inclusive nas posições do prompt, cujo próximo token é forçado de qualquer jeito. Com o log `.debug`, o large-v3 prevê `<|endoftext|>` logo depois do `<|pt|>` forçado (índice 8 de 11) e o laço para antes do primeiro token real. O Small prevê `<|translate|>` ali e segue. No Python, o prefill roda num forward só e essas previsões são descartadas.
+
+**Fix:** `PromptSafeWhisperKit` (criado pelo `WhisperKitLoader.loadKit`) sobrescreve `setupTranscribeTask` e passa um `PromptSafeTextDecoder`, que delega tudo ao decoder do WhisperKit. Quando o prompt começa com `<|startofprev|>`, ele decodifica com um `ForcedPrefixSampler`, que nas posições forçadas zera o `completed` e o log-prob (este último por causa do `firstTokenLogProbThreshold`). `decodeText`/`predictLogits` são `public`, e não `open`, por isso o desvio fica no sampler. Validado no harness: Turbo + vocabulário dá texto nas 10 frases e nas 2 falas livres, e o vocabulário ajuda ("issue", "cache", "Swift Testing"). O Small sai idêntico com e sem o desvio. O Turbo passou a `supportsVocabulary: true`. Ao subir o WhisperKit, conferir se o laço já ignora EOT no prefill e, se ignorar, remover o desvio.
+
+**Referência:** `PromptSafeTextDecoder`, `ForcedPrefixSampler` em `WhisperKitBackend.swift`; `LocalModelCatalog`.

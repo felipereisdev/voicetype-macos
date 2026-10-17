@@ -12,7 +12,7 @@ struct LocalTranscriber: Sendable {
     func transcribe(audio: Data, lang: String, vocabulary: String?) async throws -> String {
         guard let target = await manager.transcriptionTarget() else { throw LocalError.notReady }
         let samples = try WavDecoder.pcmFloatSamples(from: audio)
-        // Large Whisper models return empty text when given promptTokens.
+        // Parakeet has no prompt: the vocabulary only goes to models that take it.
         let vocabulary = target.model.supportsVocabulary ? vocabulary : nil
         return try await target.backend.transcribe(samples: samples, lang: lang, vocabulary: vocabulary)
     }

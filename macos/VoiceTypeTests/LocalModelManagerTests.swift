@@ -328,41 +328,41 @@ final class LocalModelManagerTests: XCTestCase {
     }
 
     func test_switch_during_transcription_keeps_target_consistent() async throws {
-        // Turbo (no vocabulary) active, Small pending: the switch lands mid-transcription.
-        let (turboManager, turbo) = try await ready(with: turboID)
-        turboManager.select(smallID)
+        // Parakeet (no vocabulary) active, Small pending: the switch lands mid-transcription.
+        let (parakeetManager, parakeet) = try await ready(with: parakeetID)
+        parakeetManager.select(smallID)
         await settle()
-        turbo.holdNextTranscription()
+        parakeet.holdNextTranscription()
         let audio = oneSecondOfSilence
-        let first = Task { [turboManager] in
-            try await LocalTranscriber(manager: turboManager).transcribe(audio: audio, lang: "pt", vocabulary: "Redis")
+        let first = Task { [parakeetManager] in
+            try await LocalTranscriber(manager: parakeetManager).transcribe(audio: audio, lang: "pt", vocabulary: "Redis")
         }
-        try await waitUntil { turbo.isHeld }
+        try await waitUntil { parakeet.isHeld }
         let smallAfterSwitch = try loader.succeed(smallID)
         await settle()
-        XCTAssertEqual(turboManager.activeModel?.id, smallID)
-        turbo.release()
+        XCTAssertEqual(parakeetManager.activeModel?.id, smallID)
+        parakeet.release()
         _ = try await first.value
 
-        XCTAssertEqual(turbo.vocabularies, [nil])
+        XCTAssertEqual(parakeet.vocabularies, [nil])
         XCTAssertEqual(smallAfterSwitch.vocabularies, [])
 
-        // Small active, Turbo pending: the Small keeps its vocabulary.
+        // Small active, Parakeet pending: the Small keeps its vocabulary.
         let (smallManager, small) = try await readyWithSmall()
-        smallManager.select(turboID)
+        smallManager.select(parakeetID)
         await settle()
         small.holdNextTranscription()
         let second = Task { [smallManager] in
             try await LocalTranscriber(manager: smallManager).transcribe(audio: audio, lang: "pt", vocabulary: "Redis")
         }
         try await waitUntil { small.isHeld }
-        let turboAfterSwitch = try loader.succeed(turboID)
+        let parakeetAfterSwitch = try loader.succeed(parakeetID)
         await settle()
-        XCTAssertEqual(smallManager.activeModel?.id, turboID)
+        XCTAssertEqual(smallManager.activeModel?.id, parakeetID)
         small.release()
         _ = try await second.value
 
         XCTAssertEqual(small.vocabularies, ["Redis"])
-        XCTAssertEqual(turboAfterSwitch.vocabularies, [])
+        XCTAssertEqual(parakeetAfterSwitch.vocabularies, [])
     }
 }

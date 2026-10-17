@@ -9,8 +9,7 @@ struct LocalModelCatalogTests {
         #expect(LocalModelCatalog.model(id: "parakeet-ultra")?.engine == .parakeet)
         #expect(LocalModelCatalog.model(id: "parakeet-ultra")?.supportsVocabulary == false)
         #expect(LocalModelCatalog.model(id: "openai_whisper-small")?.supportsVocabulary == true)
-        // Safe default until Task 9 proves promptTokens works on large models.
-        #expect(LocalModelCatalog.model(id: "openai_whisper-large-v3-v20240930_turbo_632MB")?.supportsVocabulary == false)
+        #expect(LocalModelCatalog.model(id: "openai_whisper-large-v3-v20240930_turbo_632MB")?.supportsVocabulary == true)
         #expect(LocalModelCatalog.model(id: "nope") == nil)
     }
 

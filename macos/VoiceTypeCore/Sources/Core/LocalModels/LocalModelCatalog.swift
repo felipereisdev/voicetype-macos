@@ -30,15 +30,14 @@ public enum LocalModelCatalog {
             supportsVocabulary: true,
             minimumMacOSMajor: 14
         ),
-        // Large Whisper models return empty text when given promptTokens, so the
-        // vocabulary stays off until that is fixed.
+        // Takes the vocabulary only through PromptSafeTextDecoder (G-036).
         LocalModel(
             id: "openai_whisper-large-v3-v20240930_turbo_632MB",
             displayName: "Whisper Large v3 Turbo",
             summary: "Mais preciso em português e termos técnicos.",
             sizeLabel: "632 MB",
             engine: .whisperKit,
-            supportsVocabulary: false,
+            supportsVocabulary: true,
             minimumMacOSMajor: 14
         ),
         // FluidAudio's Core ML path crashes in BNNS on macOS 14 (see MeetingDiarizer).
