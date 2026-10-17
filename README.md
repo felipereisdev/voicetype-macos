@@ -163,7 +163,7 @@ end
 subgraph group_dictation["Dictation pipeline"]
   node_pipeline["Transcribe and transform<br/>[Pipeline.swift]"]
   node_localasr["Local transcription"]
-  node_whisper["Whisper model manager"]
+  node_whisper["Local model manager"]
   node_localrefine["Local refine and translate<br/>[LocalRefiner.swift]"]
   node_groqclient["Groq client<br/>[GroqClient.swift]"]
   node_runusecase["Run pipeline use case"]
@@ -241,7 +241,7 @@ class node_groq,node_focusedapp,node_obsidian toneIndigo
 | Recording HUD | [`HUDController.swift`](macos/VoiceType/Features/Recording/HUD/HUDController.swift) |
 | Transcribe and transform | [`Pipeline.swift`](macos/VoiceTypeCore/Sources/Core/Pipeline/Pipeline.swift) |
 | Local transcription | [`LocalTranscriber.swift`](macos/VoiceType/Features/Recording/Transcription/LocalTranscriber.swift) |
-| Whisper model manager | [`WhisperModelManager.swift`](macos/VoiceType/Features/Recording/Transcription/WhisperModelManager.swift) |
+| Local model manager | [`LocalModelManager.swift`](macos/VoiceType/Features/Recording/Transcription/LocalModelManager.swift) |
 | Local refine and translate | [`LocalRefiner.swift`](macos/VoiceType/Features/Recording/Refinement/LocalRefiner.swift) |
 | Groq client | [`GroqClient.swift`](macos/VoiceTypeCore/Sources/Core/GroqClient/GroqClient.swift) |
 | Run pipeline use case | [`RunPipelineUseCase.swift`](macos/VoiceTypeCore/Sources/Core/UseCases/RunPipelineUseCase.swift) |

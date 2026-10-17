@@ -21,6 +21,7 @@ macos/
 │   │   │   ├── Audio/             AudioRecorder, WavEncoder, AudioDeviceResolver
 │   │   │   ├── Output/            Paster (NSPasteboard + synthesized Cmd+V), FocusedApp
 │   │   │   ├── Shortcut/          HoldDetector (CGEventTap) + ShortcutManager
+│   │   │   ├── Transcription/     LocalModelManager, LocalTranscriber, backends WhisperKit e Parakeet
 │   │   │   └── HUD/               HUDController + SwiftUI HUDView + waveform
 │   │   ├── Settings/              7 SwiftUI sections + ShortcutRecorderField
 │   │   ├── History/               SwiftUI Window scene + ViewModel + AppIconResolver
@@ -38,6 +39,7 @@ macos/
 │       ├── Config/                ConfigStore (actor) + AppConfig (Codable)
 │       ├── History/               HistoryStore (actor)
 │       ├── Pipeline/              Transcriber, Refiner, Translator, Pipeline (actor)
+│       ├── LocalModels/           LocalModelCatalog + LocalModelSelection (troca de modelo local)
 │       ├── GroqClient/            GroqClient + retry + multipart builder
 │       └── Support/               Cancellable, Logger
 ├── build/                         entitlements.plist
@@ -144,6 +146,49 @@ public actor Pipeline {
 ```
 
 Cada step tem seu `URLSession` com timeouts (connect 5 s, resource 60 s). Retries exponenciais, max 2, respeitam `Task.checkCancellation()` entre tentativas.
+
+## Transcrição local
+
+Ajustes → Transcrição local escolhe o modelo on-device do ditado. A reunião não usa esta escolha: o `MeetingProcessor` carrega o próprio Whisper grande, de vida curta, via `WhisperKitLoader.loadKit`.
+
+**Catálogo** (`LocalModelCatalog`, Core). Lista fixa; o ID é também o nome da pasta do modelo.
+
+| ID | Nome | Motor | Vocabulário | macOS |
+|---|---|---|---|---|
+| `openai_whisper-small` (padrão) | Whisper Small, 216 MB | WhisperKit | sim | 14+ |
+| `openai_whisper-large-v3-v20240930_turbo_632MB` | Whisper Large v3 Turbo, 632 MB | WhisperKit | sim, via `PromptSafeTextDecoder` (G-036) | 14+ |
+| `parakeet-ultra` | Parakeet Ultra, 630 MB | FluidAudio | não | 15+ (BNNS quebra no 14, ver `MeetingDiarizer`) |
+
+A escolha fica em `AppConfig.localTranscriptionModel` (default `openai_whisper-small`, `decodeIfPresent`, sem bump do `schemaVersion`).
+
+**Máquina de estados** (`LocalModelSelection`, Core, pura). Guarda o modelo `active` (o que transcreve) e a `pendingAttempt` (o que está carregando), e devolve efeitos (`load`, `cancelLoad`, `unload`, `deleteFiles`, `persistSelection`) a cada evento: `boot`, `select`, `cancel`, `delete`, `progress`, `loadSucceeded`, `loadFailed`. Regras:
+
+- O modelo ativo continua transcrevendo até o pendente ficar pronto. Gravar durante um download usa o modelo antigo.
+- Cada carga é uma `LoadAttempt` (id + geração única). Progresso, sucesso e falha de uma tentativa que não é mais a pendente são ignorados, mesmo que o mesmo modelo tenha sido escolhido de novo.
+- Falha ou cancelamento volta para o ativo anterior. No boot, sem ativo, volta para o Small e carrega o Small (baixando, se foi apagado); se a tentativa que falhou já era o Small, para.
+- Cancelar um download apaga só o que ele baixou; um modelo que já estava completo antes da tentativa fica.
+- O modelo ativo e o pendente nunca são apagáveis.
+
+**Manager** (`LocalModelManager`, app, `@Observable @MainActor`, criado no `AppDependencies`). Executa os efeitos através de um `LocalModelLoading` injetável (`LiveLocalModelLoader` em produção, fake nos testes). Serializa carga e remoção por id de modelo (`fileQueue`): `deleteFiles` e uma nova carga do mesmo id esperam a operação anterior terminar de fato, inclusive a compilação Core ML, que ignora cancelamento. `transcriptionTarget()` devolve modelo e backend juntos, numa leitura só.
+
+**Backends** (`LocalSpeechBackend`):
+
+- `WhisperKitBackend`: `WhisperKit` carregado pelo `WhisperKitLoader.loadKit` (download → compile → prewarm, com `checkCancellation` entre as fases). O vocabulário vira `promptTokens`. O kit é um `PromptSafeWhisperKit`, que contorna o EOT no prefill dos large-v3 (G-036).
+- `ParakeetBackend`: `AsrManager` do FluidAudio, `.ultra`, estado de decoder novo a cada ditado. Completa com silêncio o áudio com menos de 1 s. Ignora o vocabulário.
+
+**Ditado.** `LocalTranscriber` lê o `transcriptionTarget()` uma vez e usa esse snapshot na transcrição inteira, mesmo que uma troca termine no meio. Só manda o vocabulário quando `model.supportsVocabulary`. Sem modelo ativo, lança `LocalError.notReady`, que vira a notificação "Modelo local não está pronto". Com o motor `auto` e sem chave Groq, o factory usa só o local (nunca tenta o Groq, que só responderia 401). O `preflight` exige a chave apenas com o motor `groq`.
+
+**Arquivos** (`~/Library/Application Support/VoiceType/Models`, `WhisperKitLoader.modelsDirectory`):
+
+```
+Models/
+├── models/argmaxinc/whisperkit-coreml/<id>/                          Whisper (AudioEncoder/TextDecoder .mlmodelc)
+├── models/argmaxinc/whisperkit-coreml/.cache/huggingface/download/<id>/  parciais do Whisper
+├── models/openai/…                                                   tokenizers, compartilhados, nunca apagados
+└── parakeet-ultra/                                                   Parakeet (parciais *.partial inclusos)
+```
+
+Apagar um Whisper remove a pasta do modelo e os parciais dele; apagar o Parakeet remove `parakeet-ultra/`.
 
 ## Janela principal
 
