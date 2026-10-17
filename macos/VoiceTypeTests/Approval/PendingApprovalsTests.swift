@@ -5,6 +5,7 @@ import XCTest
 
 private let gotchaPath = "p5/gotchas/g.md"
 private let decisionPath = "p5/decisoes/usar-fila.md"
+private let newGotcha = "---\ntitle: G\ndescription: d\ntype: gotcha\nproject: p5\n---\n# G novo\n"
 
 private func put(_ text: String, _ relPath: String, in root: URL) throws {
     let url = root.appendingPathComponent(relPath)
@@ -110,8 +111,8 @@ final class PendingApprovalsTests: XCTestCase {
             meetingID: meetingID, note: note, vault: try vault.map(OKVaultIdentity.of), suggestedProject: "p5", project: "p5", paths: paths,
             items: [
                 OKProposedItem(action: .new, type: .decisao, path: decisionPath, title: "Usar fila",
-                               markdown: "---\ntitle: Usar fila\n---\n# Usar fila\n\n## Fontes\n\n- [\(title)](\(OKPath.relativeLink(from: decisionPath, to: paths.record)))\n"),
-                OKProposedItem(action: .update, type: .gotcha, path: gotchaPath, title: "G", markdown: "# G novo\n",
+                               markdown: "---\ntitle: Usar fila\ndescription: d\ntype: decisao\nproject: p5\n---\n# Usar fila\n\n## Fontes\n\n- [\(title)](\(OKPath.relativeLink(from: decisionPath, to: paths.record)))\n"),
+                OKProposedItem(action: .update, type: .gotcha, path: gotchaPath, title: "G", markdown: newGotcha,
                                baseHash: OKPath.contentHash(Data("old gotcha\n".utf8)), baseContent: "old gotcha\n"),
             ]
         )
@@ -224,7 +225,7 @@ final class PendingApprovalsTests: XCTestCase {
         XCTAssertFalse(MeetingProposalStore.hasJournal(c.dir))
         XCTAssertTrue(pending.items.isEmpty)
         XCTAssertNotNil(text(paths.record, in: vault))
-        XCTAssertEqual(text(gotchaPath, in: vault), "# G novo\n")
+        XCTAssertEqual(text(gotchaPath, in: vault), newGotcha)
         XCTAssertEqual(brokenLinks(vault), [])
         XCTAssertTrue(notices.isEmpty, "\(notices)")
     }
@@ -262,7 +263,7 @@ final class PendingApprovalsTests: XCTestCase {
             XCTAssertEqual(text(paths.record, in: vault), records.value)
             XCTAssertNotNil(text(paths.transcript, in: vault))
             XCTAssertNotNil(text(decisionPath, in: vault))
-            XCTAssertEqual(text(gotchaPath, in: vault), "# G novo\n")
+            XCTAssertEqual(text(gotchaPath, in: vault), newGotcha)
             XCTAssertEqual(brokenLinks(vault), [])
             XCTAssertEqual(try state(c.dir).okRecordPath, paths.record)
             XCTAssertFalse(hasProposal(c.dir))

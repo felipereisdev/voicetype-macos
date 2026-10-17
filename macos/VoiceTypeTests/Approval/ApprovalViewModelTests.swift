@@ -5,6 +5,8 @@ import XCTest
 private let gotchaPath = "p5/gotchas/g.md"
 private let decisionPath = "p5/decisoes/usar-fila.md"
 private let oldGotcha = "old gotcha\n"
+private let newGotcha = "---\ntitle: G\ndescription: d\ntype: gotcha\nproject: p5\n---\n# G novo\n"
+private let gotchaB = "---\ntitle: G\ndescription: d\ntype: gotcha\nproject: p5\n---\nB\n"
 
 private func put(_ text: String, _ relPath: String, in root: URL) throws {
     let url = root.appendingPathComponent(relPath)
@@ -16,7 +18,7 @@ private func text(_ relPath: String, in root: URL) -> String? {
     (try? Data(contentsOf: root.appendingPathComponent(relPath))).map { String(decoding: $0, as: UTF8.self) }
 }
 
-private func hash(_ s: String) -> String { OKPath.contentHash(Data(s.utf8)) }
+private func textHash(_ s: String) -> String { OKPath.contentHash(Data(s.utf8)) }
 
 private struct NotLoggedIn: LocalizedError {
     var errorDescription: String? { "not logged in" }
@@ -79,7 +81,7 @@ private final class FakeAssistant: OKAssistant, @unchecked Sendable {
             case .update:
                 let base = current[item.path]
                 return OKProposedItem(action: .update, type: item.type, path: item.path, title: item.title, markdown: updateMarkdown,
-                                      baseHash: base.map(hash), baseContent: base)
+                                      baseHash: base.map(textHash), baseContent: base)
             }
         }
     }
@@ -215,9 +217,9 @@ final class ApprovalViewModelTests: XCTestCase {
             meetingID: UUID(), note: n, vault: try OKVaultIdentity.of(vault), suggestedProject: "p5", project: "p5", paths: paths,
             items: [
                 OKProposedItem(action: .new, type: .decisao, path: decisionPath, title: "Usar fila",
-                               markdown: "---\ntitle: Usar fila\n---\n# Usar fila\n\n## Fontes\n\n- [Sprint review](\(OKPath.relativeLink(from: decisionPath, to: paths.record)))\n"),
-                OKProposedItem(action: .update, type: .gotcha, path: gotchaPath, title: "G", markdown: "# G novo\n",
-                               baseHash: hash(oldGotcha), baseContent: oldGotcha),
+                               markdown: "---\ntitle: Usar fila\ndescription: d\ntype: decisao\nproject: p5\n---\n# Usar fila\n\n## Fontes\n\n- [Sprint review](\(OKPath.relativeLink(from: decisionPath, to: paths.record)))\n"),
+                OKProposedItem(action: .update, type: .gotcha, path: gotchaPath, title: "G", markdown: newGotcha,
+                               baseHash: textHash(oldGotcha), baseContent: oldGotcha),
             ]
         )
         return (try save(p, as: name), p)
@@ -326,7 +328,7 @@ final class ApprovalViewModelTests: XCTestCase {
         let gotcha = p.items[1].id
         XCTAssertEqual(vm.session?.current, .item(gotcha))
         XCTAssertEqual(vm.session?.previousMarkdown(for: .item(gotcha)), "gotcha editado\n")
-        XCTAssertEqual(MeetingProposalStore.load(dir)?.items[1].baseHash, hash("gotcha editado\n"))
+        XCTAssertEqual(MeetingProposalStore.load(dir)?.items[1].baseHash, textHash("gotcha editado\n"))
     }
 
     func testCommitSuccessClearsPendingAndRecordsFixedPaths() async throws {
@@ -348,7 +350,7 @@ final class ApprovalViewModelTests: XCTestCase {
         XCTAssertNotNil(text(p.paths!.record, in: vault))
         XCTAssertNotNil(text(p.paths!.transcript, in: vault))
         XCTAssertNotNil(text(decisionPath, in: vault))
-        XCTAssertEqual(text(gotchaPath, in: vault), "# G novo\n")
+        XCTAssertEqual(text(gotchaPath, in: vault), newGotcha)
         XCTAssertEqual(brokenRelativeLinks(vault), [])
         XCTAssertEqual(center.addedRequests.count, 1)
     }
@@ -379,7 +381,7 @@ final class ApprovalViewModelTests: XCTestCase {
         let vault = try makeVault()
         try await useVault(vault)
         let fake = FakeAssistant(plan: [OKPlannedItem(action: .update, type: .gotcha, path: gotchaPath, title: "G", reason: "r")],
-                                 updateMarkdown: "B\n")
+                                 updateMarkdown: gotchaB)
         let (dir, _) = try await seedBuilt(assistant: fake, vault: vault)
         let vm = makeVM(dir, assistant: fake)
         await vm.load()
@@ -393,14 +395,14 @@ final class ApprovalViewModelTests: XCTestCase {
         let item = try XCTUnwrap(vm.session?.proposal.items.first?.id)
         XCTAssertEqual(vm.session?.isApproved(item), false)
         XCTAssertEqual(vm.session?.current, .item(item))
-        XCTAssertEqual(vm.session?.markdown(for: .item(item)), "B\n")
+        XCTAssertEqual(vm.session?.markdown(for: .item(item)), gotchaB)
         XCTAssertEqual(vm.session?.previousMarkdown(for: .item(item)), "C\n")
         XCTAssertEqual(text(gotchaPath, in: vault), "C\n")
 
         vm.approve()
         ok = await vm.commit()
         XCTAssertTrue(ok, vm.banner ?? "")
-        XCTAssertEqual(text(gotchaPath, in: vault), "B\n")
+        XCTAssertEqual(text(gotchaPath, in: vault), gotchaB)
     }
 
     func testProposalAgingPast24hWithWindowOpenRedistills() async throws {
@@ -424,7 +426,7 @@ final class ApprovalViewModelTests: XCTestCase {
         let vault = try makeVault()
         try await useVault(vault)
         let fake = FakeAssistant(plan: [OKPlannedItem(action: .update, type: .gotcha, path: gotchaPath, title: "G", reason: "r")],
-                                 updateMarkdown: "B\n")
+                                 updateMarkdown: gotchaB)
         let (dir, _) = try await seedBuilt(assistant: fake, vault: vault)
         var vm = makeVM(dir, assistant: fake)
         await vm.load()
@@ -660,7 +662,7 @@ final class ApprovalViewModelTests: XCTestCase {
     func testRecordWrittenSessionNeverFinalizesWithMissingDependency() async throws {
         let vault = try makeVault()
         try await useVault(vault)
-        let oldADR = "---\ntitle: Usar fila\n---\n# Usar fila\n"
+        let oldADR = "---\ntitle: Usar fila\ndescription: d\ntype: decisao\nproject: p5\n---\n# Usar fila\n"
         try put(oldADR, decisionPath, in: vault)
         let n = note("Sprint review")
         let paths = OKMeetingPaths.make(project: "p5", startedAt: date, title: n.summary.title)
@@ -669,11 +671,11 @@ final class ApprovalViewModelTests: XCTestCase {
         try put(OKMeetingRenderer.renderTranscript(n, transcript: n.transcript!, project: "p5", paths: paths), paths.transcript, in: vault)
         let p = MeetingProposal(
             recordWritten: true, meetingID: UUID(), note: n, vault: try OKVaultIdentity.of(vault), suggestedProject: "p5",
-            project: "p5", paths: paths, fixedPaths: paths, existingRecordHash: hash(record),
-            existingTranscriptHash: text(paths.transcript, in: vault).map(hash),
+            project: "p5", paths: paths, fixedPaths: paths, existingRecordHash: textHash(record),
+            existingTranscriptHash: text(paths.transcript, in: vault).map(textHash),
             items: [OKProposedItem(action: .update, type: .decisao, path: decisionPath, title: "Usar fila",
                                    markdown: oldADR + "\n## Fontes\n\n- [Sprint review](\(OKPath.relativeLink(from: decisionPath, to: paths.record)))\n",
-                                   baseHash: hash(oldADR), baseContent: oldADR)]
+                                   baseHash: textHash(oldADR), baseContent: oldADR)]
         )
         let dir = try save(p, as: "2026-10-16_143000")
         let recordURL = vault.appendingPathComponent(paths.record)
