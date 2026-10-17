@@ -1,6 +1,7 @@
 import Foundation
 import Core
 import FluidAudio
+import os
 
 /// A loaded on-device speech model, ready to transcribe 16 kHz mono samples.
 protocol LocalSpeechBackend: AnyObject, Sendable {
@@ -30,6 +31,8 @@ protocol LocalModelLoading {
 /// - Parakeet: `parakeet-ultra/`, partials (`*.partial`) included.
 @MainActor
 struct LiveLocalModelLoader: LocalModelLoading {
+    private static let logger = Logger(subsystem: "dev.voicetype.app", category: "LiveLocalModelLoader")
+
     let modelsDirectory: URL
 
     nonisolated init(modelsDirectory: URL = WhisperKitLoader.modelsDirectory) {
@@ -70,6 +73,19 @@ struct LiveLocalModelLoader: LocalModelLoading {
     ) async throws -> any LocalSpeechBackend {
         switch model.engine {
         case .whisperKit:
+            if isDownloaded(model) {
+                // Offline or with the repository down, the files on disk still load.
+                do {
+                    let kit = try await WhisperKitLoader.loadKit(
+                        modelFolder: whisperFolder(model.id), tokenizerFolder: modelsDirectory
+                    )
+                    return WhisperKitBackend(kit: kit)
+                } catch {
+                    try Task.checkCancellation()
+                    // Fall through: the download fetches whatever file is missing.
+                    Self.logger.error("Local load of \(model.id, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+                }
+            }
             let kit = try await WhisperKitLoader.loadKit(variant: model.id, downloadBase: modelsDirectory) { fraction in
                 progress(fraction >= 1 ? .preparing : .downloading(fraction))
             }

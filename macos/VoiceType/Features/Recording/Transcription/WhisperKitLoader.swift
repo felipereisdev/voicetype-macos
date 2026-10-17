@@ -22,10 +22,16 @@ enum WhisperKitLoader {
             onProgress(progress.fractionCompleted)
         }
         try Task.checkCancellation()
+        return try await loadKit(modelFolder: folder, tokenizerFolder: downloadBase)
+    }
+
+    /// Loads a model already on disk, without asking the repository for its
+    /// file list (`WhisperKit.download` always does, even when nothing is missing).
+    static func loadKit(modelFolder folder: URL, tokenizerFolder: URL) async throws -> WhisperKit {
         let config = WhisperKitConfig(
             // Without tokenizerFolder, swift-transformers' HubApi defaults to
             // ~/Documents/huggingface → TCC "access Documents" prompt per binary.
-            modelFolder: folder.path, tokenizerFolder: downloadBase,
+            modelFolder: folder.path, tokenizerFolder: tokenizerFolder,
             verbose: false, logLevel: .error,
             prewarm: false, load: false, download: false
         )

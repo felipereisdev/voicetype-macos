@@ -159,7 +159,7 @@ struct LocalModelSelectionTests {
         let effects = sel.loadFailed(t, message: "boom")
         let d = attempt(in: effects)!
         #expect(d.modelID == small)
-        #expect(effects == [.deleteFiles(turbo), .persistSelection(small), .load(d)])
+        #expect(effects == [.persistSelection(small), .load(d)])
         #expect(sel.pending == small)
         #expect(sel.status(of: small) == (defaultDownloaded ? .preparing : .downloading(0)))
         #expect(sel.status(of: turbo) == .failed("boom"))
@@ -168,10 +168,48 @@ struct LocalModelSelectionTests {
     @Test func bootFailureOfDefaultStops() {
         var sel = LocalModelSelection(modelIDs: ids, downloaded: [small])
         let d = attempt(in: sel.boot(selectedID: small))!
-        #expect(sel.loadFailed(d, message: "boom") == [.deleteFiles(small)])
+        #expect(sel.loadFailed(d, message: "boom") == [])
         #expect(sel.pending == nil)
         #expect(sel.active == nil)
         #expect(sel.status(of: small) == .failed("boom"))
+    }
+
+    @Test func failureOfIncompleteDownloadDeletesPartials() {
+        var sel = LocalModelSelection(modelIDs: ids, downloaded: [])
+        let d = attempt(in: sel.boot(selectedID: small))!
+        #expect(sel.loadFailed(d, message: "boom") == [.deleteFiles(small)])
+        #expect(!sel.hasFiles(small))
+    }
+
+    // Regression (review 6 r1): offline at boot, both cached models fail on the
+    // repository request. A failed request is no proof the files are bad, so
+    // neither cache is deleted.
+    @Test func offlineBootKeepsBothCachedModels() {
+        var sel = LocalModelSelection(modelIDs: ids, downloaded: [small, turbo])
+        let t = attempt(in: sel.boot(selectedID: turbo))!
+        let effects = sel.loadFailed(t, message: "offline")
+        let d = attempt(in: effects)!
+        #expect(effects == [.persistSelection(small), .load(d)])
+        #expect(sel.loadFailed(d, message: "offline") == [])
+        #expect(sel.hasFiles(small))
+        #expect(sel.hasFiles(turbo))
+        #expect(sel.status(of: small) == .failed("offline"))
+
+        // A retry loads the files on disk again instead of downloading them.
+        let retry = attempt(in: sel.select(small))!
+        #expect(sel.status(of: small) == .preparing)
+        #expect(sel.loadSucceeded(retry) == [])
+        #expect(sel.active == small)
+    }
+
+    @Test func failedModelWithFilesCanBeDeleted() {
+        var sel = activeSmall(downloaded: [small, turbo])
+        let t = attempt(in: sel.select(turbo))!
+        #expect(sel.loadFailed(t, message: "boom") == [.persistSelection(small)])
+        #expect(sel.hasFiles(turbo))
+        #expect(sel.delete(turbo) == [.deleteFiles(turbo)])
+        #expect(sel.status(of: turbo) == .notDownloaded)
+        #expect(!sel.hasFiles(turbo))
     }
 
     @Test func cancelRevertsToActiveAndDeletesPartial() {

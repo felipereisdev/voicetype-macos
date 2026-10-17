@@ -138,12 +138,19 @@ private struct LocalModelRow: View {
                 .controlSize(.small)
                 .accessibilityIdentifier("settings.localModel.\(model.id).cancel")
         case .downloaded, .ready:
-            Button(SettingsStrings.localModelDelete) { models.delete(model.id) }
-                .controlSize(.small)
-                .disabled(isBusy)
-                .accessibilityIdentifier("settings.localModel.\(model.id).delete")
+            deleteButton
+        case .failed where selection.hasFiles(model.id):
+            // Its files stay after a failure; deleting them forces a new download.
+            deleteButton
         case .notDownloaded, .failed:
             EmptyView()
         }
+    }
+
+    private var deleteButton: some View {
+        Button(SettingsStrings.localModelDelete) { models.delete(model.id) }
+            .controlSize(.small)
+            .disabled(isBusy)
+            .accessibilityIdentifier("settings.localModel.\(model.id).delete")
     }
 }

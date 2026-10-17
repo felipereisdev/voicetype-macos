@@ -281,6 +281,43 @@ final class LocalModelManagerTests: XCTestCase {
         XCTAssertEqual(manager.selection.pending, smallID)
     }
 
+    // Regression (review 6 r1): offline at boot, the repository request fails
+    // before Core ML. The cached files are kept and the cached Small takes over.
+    func test_boot_network_failure_keeps_cached_models_and_falls_back_to_default() async throws {
+        loader.downloaded = [smallID, turboID]
+        let manager = makeManager()
+        manager.bootstrap(selectedID: turboID)
+        await settle()
+        try loader.fail(turboID, URLError(.notConnectedToInternet))
+        await settle()
+        XCTAssertEqual(manager.selection.pending, smallID)
+        try loader.succeed(smallID)
+        await settle()
+
+        XCTAssertFalse(loader.log.contains { $0.hasPrefix("delete:") })
+        XCTAssertEqual(manager.activeModel?.id, smallID)
+        XCTAssertEqual(persisted, [smallID])
+        XCTAssertTrue(manager.selection.hasFiles(turboID))
+        XCTAssertEqual(manager.selection.status(of: turboID), .failed(URLError(.notConnectedToInternet).localizedDescription))
+    }
+
+    func test_boot_network_failure_of_both_cached_models_deletes_nothing() async throws {
+        loader.downloaded = [smallID, turboID]
+        let manager = makeManager()
+        manager.bootstrap(selectedID: turboID)
+        await settle()
+        try loader.fail(turboID, URLError(.notConnectedToInternet))
+        await settle()
+        try loader.fail(smallID, URLError(.notConnectedToInternet))
+        await settle()
+
+        XCTAssertFalse(loader.log.contains { $0.hasPrefix("delete:") })
+        XCTAssertFalse(manager.isReady)
+        XCTAssertNil(manager.selection.pending)
+        XCTAssertTrue(manager.selection.hasFiles(smallID))
+        XCTAssertTrue(manager.selection.hasFiles(turboID))
+    }
+
     func test_boot_cancel_with_default_deleted_loads_default() async throws {
         let manager = makeManager()
         manager.bootstrap(selectedID: turboID)

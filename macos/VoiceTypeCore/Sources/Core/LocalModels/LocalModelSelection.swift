@@ -47,6 +47,9 @@ public struct LocalModelSelection: Equatable, Sendable {
         return .notDownloaded
     }
 
+    /// Whether the model's complete files are on disk, failed or not.
+    public func hasFiles(_ id: String) -> Bool { downloaded.contains(id) }
+
     public mutating func boot(selectedID: String) -> [LocalModelEffect] {
         guard active == nil, pendingAttempt == nil else { return [] }
         guard modelIDs.contains(selectedID) else {
@@ -87,11 +90,14 @@ public struct LocalModelSelection: Equatable, Sendable {
     public mutating func loadFailed(_ attempt: LoadAttempt, message: String) -> [LocalModelEffect] {
         guard attempt == pendingAttempt else { return [] }
         let id = attempt.modelID
+        let wasDownloaded = pendingWasDownloaded
         clearPending()
-        // Files may be corrupt; a retry downloads them again.
-        downloaded.remove(id)
         failures[id] = message
-        return [.deleteFiles(id)] + revert(after: id)
+        // A failure is no proof the files are bad (offline, the repository is
+        // down): complete files stay, and a retry loads them again. Only an
+        // incomplete download is cleaned up, as on cancel.
+        let cleanup: [LocalModelEffect] = wasDownloaded ? [] : [.deleteFiles(id)]
+        return cleanup + revert(after: id)
     }
 
     public mutating func cancel() -> [LocalModelEffect] {
@@ -102,6 +108,7 @@ public struct LocalModelSelection: Equatable, Sendable {
     public mutating func delete(_ id: String) -> [LocalModelEffect] {
         guard id != active, id != pending, downloaded.contains(id) else { return [] }
         downloaded.remove(id)
+        failures[id] = nil
         return [.deleteFiles(id)]
     }
 
