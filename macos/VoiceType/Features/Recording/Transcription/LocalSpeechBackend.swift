@@ -32,7 +32,7 @@ protocol LocalModelLoading {
 struct LiveLocalModelLoader: LocalModelLoading {
     let modelsDirectory: URL
 
-    init(modelsDirectory: URL = WhisperKitLoader.modelsDirectory) {
+    nonisolated init(modelsDirectory: URL = WhisperKitLoader.modelsDirectory) {
         self.modelsDirectory = modelsDirectory
     }
 
