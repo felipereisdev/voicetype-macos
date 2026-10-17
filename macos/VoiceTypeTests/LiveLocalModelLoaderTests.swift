@@ -2,6 +2,23 @@ import XCTest
 import Core
 @testable import VoiceType
 
+/// Fails every request on the shared session, where WhisperKit asks the
+/// repository for its file list before downloading anything.
+private final class OfflineURLProtocol: URLProtocol {
+    private static let lock = NSLock()
+    private static var count = 0
+    static var requests: Int { lock.withLock { count } }
+    static func reset() { lock.withLock { count = 0 } }
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        Self.lock.withLock { Self.count += 1 }
+        client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet))
+    }
+    override func stopLoading() {}
+}
+
 @MainActor
 final class LiveLocalModelLoaderTests: XCTestCase {
     private var base: URL!
@@ -85,5 +102,57 @@ final class LiveLocalModelLoaderTests: XCTestCase {
         try makeDir(folder.appendingPathComponent("TextDecoder.mlmodelc"))
         XCTAssertTrue(loader.isDownloaded(turbo))
         XCTAssertFalse(loader.isDownloaded(try model(smallID)))
+    }
+
+    /// What an interrupted download leaves: every compiled-model folder and its
+    /// graph metadata, but the encoder weights never arrived.
+    private func makeInterruptedBundle(_ id: String) throws -> URL {
+        let folder = whisperRepo.appendingPathComponent(id)
+        for name in ["MelSpectrogram", "AudioEncoder", "TextDecoder"] {
+            let compiled = folder.appendingPathComponent("\(name).mlmodelc")
+            for file in ["model.mil", "coremldata.bin", "metadata.json"] {
+                try makeFile(compiled.appendingPathComponent(file))
+            }
+            if name != "AudioEncoder" {
+                try makeFile(compiled.appendingPathComponent("weights/weight.bin"))
+            }
+        }
+        return folder
+    }
+
+    // Regression (review 6 r2): Core ML crashes loading a bundle without its
+    // weights, so only a finished download is loaded straight from disk.
+    func test_interrupted_whisper_bundle_is_not_a_complete_bundle() throws {
+        let loader = LiveLocalModelLoader(modelsDirectory: base)
+        let turbo = try model(turboID)
+        let folder = try makeInterruptedBundle(turboID)
+
+        XCTAssertTrue(loader.isDownloaded(turbo))
+        XCTAssertNil(loader.completeBundle(turbo))
+
+        try makeFile(folder.appendingPathComponent(LiveLocalModelLoader.completeMarker))
+        XCTAssertEqual(loader.completeBundle(turbo)?.standardizedFileURL, folder.standardizedFileURL)
+        XCTAssertNil(loader.completeBundle(try model(smallID)))
+    }
+
+    func test_offline_load_of_interrupted_bundle_fails_through_download_and_keeps_files() async throws {
+        let loader = LiveLocalModelLoader(modelsDirectory: base)
+        let turbo = try model(turboID)
+        let folder = try makeInterruptedBundle(turboID)
+        OfflineURLProtocol.reset()
+        URLProtocol.registerClass(OfflineURLProtocol.self)
+        defer { URLProtocol.unregisterClass(OfflineURLProtocol.self) }
+
+        do {
+            _ = try await loader.load(turbo) { _ in }
+            XCTFail("an offline load of an interrupted bundle cannot succeed")
+        } catch {
+            XCTAssertFalse(error is CancellationError)
+        }
+
+        XCTAssertGreaterThan(OfflineURLProtocol.requests, 0, "went to the download, which repairs the bundle")
+        XCTAssertTrue(exists(folder.appendingPathComponent("AudioEncoder.mlmodelc/model.mil")))
+        XCTAssertTrue(exists(folder.appendingPathComponent("TextDecoder.mlmodelc/weights/weight.bin")))
+        XCTAssertNil(loader.completeBundle(turbo))
     }
 }

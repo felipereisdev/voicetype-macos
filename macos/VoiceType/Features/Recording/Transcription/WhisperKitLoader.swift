@@ -18,11 +18,20 @@ enum WhisperKitLoader {
         variant: String, downloadBase: URL = modelsDirectory,
         onProgress: @escaping @Sendable (Double) -> Void
     ) async throws -> WhisperKit {
-        let folder = try await WhisperKit.download(variant: variant, downloadBase: downloadBase) { progress in
-            onProgress(progress.fractionCompleted)
-        }
+        let folder = try await download(variant: variant, downloadBase: downloadBase, onProgress: onProgress)
         try Task.checkCancellation()
         return try await loadKit(modelFolder: folder, tokenizerFolder: downloadBase)
+    }
+
+    /// Fetches whatever file of the model is missing and returns its folder,
+    /// once every file is on disk.
+    static func download(
+        variant: String, downloadBase: URL,
+        onProgress: @escaping @Sendable (Double) -> Void
+    ) async throws -> URL {
+        try await WhisperKit.download(variant: variant, downloadBase: downloadBase) { progress in
+            onProgress(progress.fractionCompleted)
+        }
     }
 
     /// Loads a model already on disk, without asking the repository for its

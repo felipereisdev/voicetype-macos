@@ -25,13 +25,20 @@ protocol LocalModelLoading {
 }
 
 /// Every model lives under `modelsDirectory`:
-/// - Whisper: `models/argmaxinc/whisperkit-coreml/<id>`, with its partial
-///   downloads in `models/argmaxinc/whisperkit-coreml/.cache/huggingface/download/<id>`.
+/// - Whisper: `models/argmaxinc/whisperkit-coreml/<id>` (plus `completeMarker`
+///   once its download finished), with its partial downloads in
+///   `models/argmaxinc/whisperkit-coreml/.cache/huggingface/download/<id>`.
 ///   Tokenizers (`models/openai/…`) are shared and never deleted.
 /// - Parakeet: `parakeet-ultra/`, partials (`*.partial`) included.
 @MainActor
 struct LiveLocalModelLoader: LocalModelLoading {
     private static let logger = Logger(subsystem: "dev.voicetype.app", category: "LiveLocalModelLoader")
+
+    /// Written in a Whisper model's folder once `WhisperKit.download` returned,
+    /// i.e. every file is on disk. The folders alone prove nothing: an
+    /// interrupted download leaves them without weights, and Core ML crashes
+    /// (it does not throw) loading that.
+    static let completeMarker = ".voicetype-complete"
 
     let modelsDirectory: URL
 
@@ -68,17 +75,24 @@ struct LiveLocalModelLoader: LocalModelLoading {
         }
     }
 
+    /// The folder of a Whisper model whose download finished, which can be
+    /// loaded without asking the repository anything; nil otherwise.
+    func completeBundle(_ model: LocalModel) -> URL? {
+        guard model.engine == .whisperKit else { return nil }
+        let folder = whisperFolder(model.id)
+        let marker = folder.appendingPathComponent(Self.completeMarker)
+        return FileManager.default.fileExists(atPath: marker.path) ? folder : nil
+    }
+
     func load(
         _ model: LocalModel, progress: @escaping @Sendable (LocalModelLoadProgress) -> Void
     ) async throws -> any LocalSpeechBackend {
         switch model.engine {
         case .whisperKit:
-            if isDownloaded(model) {
+            if let folder = completeBundle(model) {
                 // Offline or with the repository down, the files on disk still load.
                 do {
-                    let kit = try await WhisperKitLoader.loadKit(
-                        modelFolder: whisperFolder(model.id), tokenizerFolder: modelsDirectory
-                    )
+                    let kit = try await WhisperKitLoader.loadKit(modelFolder: folder, tokenizerFolder: modelsDirectory)
                     return WhisperKitBackend(kit: kit)
                 } catch {
                     try Task.checkCancellation()
@@ -86,9 +100,12 @@ struct LiveLocalModelLoader: LocalModelLoading {
                     Self.logger.error("Local load of \(model.id, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
                 }
             }
-            let kit = try await WhisperKitLoader.loadKit(variant: model.id, downloadBase: modelsDirectory) { fraction in
+            let folder = try await WhisperKitLoader.download(variant: model.id, downloadBase: modelsDirectory) { fraction in
                 progress(fraction >= 1 ? .preparing : .downloading(fraction))
             }
+            FileManager.default.createFile(atPath: folder.appendingPathComponent(Self.completeMarker).path, contents: nil)
+            try Task.checkCancellation()
+            let kit = try await WhisperKitLoader.loadKit(modelFolder: folder, tokenizerFolder: modelsDirectory)
             return WhisperKitBackend(kit: kit)
         case .parakeet:
             let folder = parakeetFolder
