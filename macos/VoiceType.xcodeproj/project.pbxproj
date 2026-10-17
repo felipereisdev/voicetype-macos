@@ -115,7 +115,7 @@
 		A00F000000000000000000A5 /* HistoryRecorderAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00F000000000000000000A5 /* HistoryRecorderAdapter.swift */; };
 		A00F000000000000000000A7 /* RecordingOrchestrator+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00F000000000000000000A7 /* RecordingOrchestrator+Helpers.swift */; };
 		DE3214E92FE415BF000EA50B /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = DE3214E82FE415BF000EA50B /* WhisperKit */; };
-		A010000000000000000000A1 /* WhisperModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B010000000000000000000A1 /* WhisperModelManager.swift */; };
+		A010000000000000000000A1 /* WhisperKitLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B010000000000000000000A1 /* WhisperKitLoader.swift */; };
 		A010000000000000000000A2 /* LocalTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = B010000000000000000000A2 /* LocalTranscriber.swift */; };
 		A03000000000000000000001 /* LocalSpeechBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = B03000000000000000000001 /* LocalSpeechBackend.swift */; };
 		A03000000000000000000002 /* WhisperKitBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = B03000000000000000000002 /* WhisperKitBackend.swift */; };
@@ -267,7 +267,7 @@
 		B00F000000000000000000A4 /* PipelineRunnerAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineRunnerAdapter.swift; sourceTree = "<group>"; };
 		B00F000000000000000000A5 /* HistoryRecorderAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryRecorderAdapter.swift; sourceTree = "<group>"; };
 		B00F000000000000000000A7 /* RecordingOrchestrator+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RecordingOrchestrator+Helpers.swift"; sourceTree = "<group>"; };
-		B010000000000000000000A1 /* WhisperModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperModelManager.swift; sourceTree = "<group>"; };
+		B010000000000000000000A1 /* WhisperKitLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperKitLoader.swift; sourceTree = "<group>"; };
 		B010000000000000000000A2 /* LocalTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalTranscriber.swift; sourceTree = "<group>"; };
 		B03000000000000000000001 /* LocalSpeechBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalSpeechBackend.swift; sourceTree = "<group>"; };
 		B03000000000000000000002 /* WhisperKitBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperKitBackend.swift; sourceTree = "<group>"; };
@@ -692,7 +692,7 @@
 		H010000000000000000000H6 /* Transcription */ = {
 			isa = PBXGroup;
 			children = (
-				B010000000000000000000A1 /* WhisperModelManager.swift */,
+				B010000000000000000000A1 /* WhisperKitLoader.swift */,
 				B010000000000000000000A2 /* LocalTranscriber.swift */,
 				B03000000000000000000001 /* LocalSpeechBackend.swift */,
 				B03000000000000000000002 /* WhisperKitBackend.swift */,
@@ -943,7 +943,7 @@
 				A00F000000000000000000A4 /* PipelineRunnerAdapter.swift in Sources */,
 				A00F000000000000000000A5 /* HistoryRecorderAdapter.swift in Sources */,
 				A00F000000000000000000A7 /* RecordingOrchestrator+Helpers.swift in Sources */,
-				A010000000000000000000A1 /* WhisperModelManager.swift in Sources */,
+				A010000000000000000000A1 /* WhisperKitLoader.swift in Sources */,
 				A010000000000000000000A2 /* LocalTranscriber.swift in Sources */,
 				A03000000000000000000001 /* LocalSpeechBackend.swift in Sources */,
 				A03000000000000000000002 /* WhisperKitBackend.swift in Sources */,

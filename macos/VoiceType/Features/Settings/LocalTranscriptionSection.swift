@@ -3,7 +3,7 @@ import Core
 
 struct LocalTranscriptionSection: View {
     let snapshot: ConfigStoreSnapshot
-    let models: WhisperModelManager
+    let models: LocalModelManager
 
     var body: some View {
         Form {
@@ -29,11 +29,11 @@ struct LocalTranscriptionSection: View {
     }
 
     private var statusText: String {
-        switch models.state {
-        case .notReady: return SettingsStrings.modelStatusNotReady
+        switch models.selection.status(of: models.selection.selected) {
         case .downloading(let p): return SettingsStrings.modelStatusDownloading(Int(p * 100))
         case .ready: return SettingsStrings.modelStatusReady
         case .failed(let m): return SettingsStrings.modelStatusFailed(m)
+        case .notDownloaded, .downloaded, .preparing: return SettingsStrings.modelStatusNotReady
         }
     }
 }

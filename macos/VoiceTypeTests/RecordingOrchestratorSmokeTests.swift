@@ -38,7 +38,7 @@ final class RecordingOrchestratorSmokeTests: XCTestCase {
             notifier: Notifier(),
             hudController: HUDController(),
             recorder: FakeRecorder(),
-            whisperModels: WhisperModelManager(),
+            localModels: LocalModelManager(persist: { _ in }),
             editObserver: EditObserver(store: SuggestionStore(fileURL: tempHistoryURL()))
         )
         var cfg = AppConfig()
@@ -72,7 +72,7 @@ final class RecordingOrchestratorSmokeTests: XCTestCase {
             recorder: recorder,
             stateMachine: stateMachine,
             shortcutManager: manager,
-            whisperModels: WhisperModelManager()
+            localModels: LocalModelManager(persist: { _ in })
         )
 
         await manager.applyConfig()
@@ -112,7 +112,7 @@ final class RecordingOrchestratorSmokeTests: XCTestCase {
             recorder: recorder,
             stateMachine: stateMachine,
             shortcutManager: manager,
-            whisperModels: WhisperModelManager()
+            localModels: LocalModelManager(persist: { _ in })
         )
 
         await manager.applyConfig()
@@ -148,7 +148,7 @@ final class RecordingOrchestratorSmokeTests: XCTestCase {
             recorder: recorder,
             stateMachine: stateMachine,
             shortcutManager: manager,
-            whisperModels: WhisperModelManager()
+            localModels: LocalModelManager(persist: { _ in })
         )
 
         await manager.applyConfig()

@@ -2,8 +2,38 @@ import XCTest
 import Core
 @testable import VoiceType
 
+/// Records the vocabulary of every call. After `holdNextTranscription()`, the
+/// next call stays suspended until `release()`.
 final class FakeBackend: LocalSpeechBackend, @unchecked Sendable {
-    func transcribe(samples: [Float], lang: String, vocabulary: String?) async throws -> String { "" }
+    private let lock = NSLock()
+    private var received: [String?] = []
+    private var holdsNext = false
+    private var held: CheckedContinuation<Void, Never>?
+
+    var vocabularies: [String?] { lock.withLock { received } }
+    var isHeld: Bool { lock.withLock { held != nil } }
+
+    func holdNextTranscription() { lock.withLock { holdsNext = true } }
+
+    func release() {
+        let continuation = lock.withLock { () -> CheckedContinuation<Void, Never>? in
+            defer { held = nil }
+            return held
+        }
+        continuation?.resume()
+    }
+
+    func transcribe(samples: [Float], lang: String, vocabulary: String?) async throws -> String {
+        let holds = lock.withLock { () -> Bool in
+            received.append(vocabulary)
+            defer { holdsNext = false }
+            return holdsNext
+        }
+        if holds {
+            await withCheckedContinuation { continuation in lock.withLock { held = continuation } }
+        }
+        return ""
+    }
 }
 
 /// Logs `load:<id>`, `end:<id>` and `delete:<id>` in order. Each load stays
@@ -89,15 +119,31 @@ final class LocalModelManagerTests: XCTestCase {
     }
 
     private func readyWithSmall() async throws -> (LocalModelManager, FakeBackend) {
-        loader.downloaded.insert(smallID)
+        try await ready(with: smallID)
+    }
+
+    private func ready(with id: String) async throws -> (LocalModelManager, FakeBackend) {
+        loader.downloaded.insert(id)
         let manager = makeManager()
-        manager.bootstrap(selectedID: smallID)
+        manager.bootstrap(selectedID: id)
         await settle()
-        let backend = try loader.succeed(smallID)
+        let backend = try loader.succeed(id)
         await settle()
-        XCTAssertEqual(manager.activeModel?.id, smallID)
+        XCTAssertEqual(manager.activeModel?.id, id)
         persisted = []
         return (manager, backend)
+    }
+
+    /// Polls until `condition` holds: the transcriber runs off the main actor.
+    private func waitUntil(_ condition: () -> Bool) async throws {
+        for _ in 0..<2_000 where !condition() {
+            try await Task.sleep(nanoseconds: 1_000_000)
+        }
+        XCTAssertTrue(condition(), "timed out")
+    }
+
+    private var oneSecondOfSilence: Data {
+        WavEncoder.encode(pcmInt16LE: Data(count: 32_000), sampleRate: 16_000, channels: 1)
     }
 
     private func count(_ entry: String) -> Int {
@@ -264,5 +310,56 @@ final class LocalModelManagerTests: XCTestCase {
         await settle()
         XCTAssertEqual(loader.log.filter { $0.hasPrefix("delete:") }, ["delete:\(turboID)"])
         XCTAssertEqual(manager.selection.status(of: turboID), .notDownloaded)
+    }
+
+    func test_vocabulary_dropped_when_model_does_not_support_it() async throws {
+        let (parakeetManager, parakeet) = try await ready(with: parakeetID)
+        _ = try await LocalTranscriber(manager: parakeetManager)
+            .transcribe(audio: oneSecondOfSilence, lang: "pt", vocabulary: "Redis")
+        XCTAssertEqual(parakeet.vocabularies, [nil])
+
+        let (smallManager, small) = try await readyWithSmall()
+        _ = try await LocalTranscriber(manager: smallManager)
+            .transcribe(audio: oneSecondOfSilence, lang: "pt", vocabulary: "Redis")
+        XCTAssertEqual(small.vocabularies, ["Redis"])
+    }
+
+    func test_switch_during_transcription_keeps_target_consistent() async throws {
+        // Turbo (no vocabulary) active, Small pending: the switch lands mid-transcription.
+        let (turboManager, turbo) = try await ready(with: turboID)
+        turboManager.select(smallID)
+        await settle()
+        turbo.holdNextTranscription()
+        let audio = oneSecondOfSilence
+        let first = Task { [turboManager] in
+            try await LocalTranscriber(manager: turboManager).transcribe(audio: audio, lang: "pt", vocabulary: "Redis")
+        }
+        try await waitUntil { turbo.isHeld }
+        let smallAfterSwitch = try loader.succeed(smallID)
+        await settle()
+        XCTAssertEqual(turboManager.activeModel?.id, smallID)
+        turbo.release()
+        _ = try await first.value
+
+        XCTAssertEqual(turbo.vocabularies, [nil])
+        XCTAssertEqual(smallAfterSwitch.vocabularies, [])
+
+        // Small active, Turbo pending: the Small keeps its vocabulary.
+        let (smallManager, small) = try await readyWithSmall()
+        smallManager.select(turboID)
+        await settle()
+        small.holdNextTranscription()
+        let second = Task { [smallManager] in
+            try await LocalTranscriber(manager: smallManager).transcribe(audio: audio, lang: "pt", vocabulary: "Redis")
+        }
+        try await waitUntil { small.isHeld }
+        let turboAfterSwitch = try loader.succeed(turboID)
+        await settle()
+        XCTAssertEqual(smallManager.activeModel?.id, turboID)
+        small.release()
+        _ = try await second.value
+
+        XCTAssertEqual(small.vocabularies, ["Redis"])
+        XCTAssertEqual(turboAfterSwitch.vocabularies, [])
     }
 }

@@ -1,48 +1,5 @@
 import Foundation
-import Observation
 import WhisperKit
-import os
-
-@Observable
-@MainActor
-final class WhisperModelManager {
-    enum State: Equatable {
-        case notReady
-        case downloading(Double)
-        case ready
-        case failed(String)
-    }
-
-    static let variant = "openai_whisper-small"
-    private static let logger = Logger(subsystem: "dev.voicetype.app", category: "WhisperModelManager")
-
-    private(set) var state: State = .notReady
-    private var kit: WhisperKit?
-    private var loadTask: Task<Void, Never>?
-
-    var isReady: Bool { kit != nil }
-    func transcriber() -> WhisperKit? { kit }
-
-    func bootstrap() {
-        guard kit == nil, loadTask == nil else { return }
-        loadTask = Task { [weak self] in await self?.load() }
-    }
-
-    private func load() async {
-        do {
-            let kit = try await WhisperKitLoader.loadKit(variant: Self.variant) { [weak self] fraction in
-                Task { @MainActor in self?.state = .downloading(fraction) }
-            }
-            self.kit = kit
-            self.state = .ready
-            Self.logger.info("WhisperKit ready: \(Self.variant, privacy: .public)")
-        } catch {
-            self.state = .failed(error.localizedDescription)
-            Self.logger.error("WhisperKit load failed: \(error.localizedDescription, privacy: .public)")
-        }
-        loadTask = nil
-    }
-}
 
 enum WhisperKitLoader {
     static var modelsDirectory: URL {
