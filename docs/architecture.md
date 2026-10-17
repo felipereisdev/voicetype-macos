@@ -167,13 +167,14 @@ A escolha fica em `AppConfig.localTranscriptionModel` (default `openai_whisper-s
 - Cada carga é uma `LoadAttempt` (id + geração única). Progresso, sucesso e falha de uma tentativa que não é mais a pendente são ignorados, mesmo que o mesmo modelo tenha sido escolhido de novo.
 - Falha ou cancelamento volta para o ativo anterior. No boot, sem ativo, volta para o Small e carrega o Small (baixando, se foi apagado); se a tentativa que falhou já era o Small, para.
 - Cancelar um download apaga só o que ele baixou; um modelo que já estava completo antes da tentativa fica.
+- Falhar também só apaga um download incompleto. Arquivos completos ficam (sem rede ou com o Hugging Face fora, a falha não prova que estão corrompidos): a linha mostra a falha com o botão Apagar, e uma nova tentativa carrega de novo o que está no disco.
 - O modelo ativo e o pendente nunca são apagáveis.
 
 **Manager** (`LocalModelManager`, app, `@Observable @MainActor`, criado no `AppDependencies`). Executa os efeitos através de um `LocalModelLoading` injetável (`LiveLocalModelLoader` em produção, fake nos testes). Serializa carga e remoção por id de modelo (`fileQueue`): `deleteFiles` e uma nova carga do mesmo id esperam a operação anterior terminar de fato, inclusive a compilação Core ML, que ignora cancelamento. `transcriptionTarget()` devolve modelo e backend juntos, numa leitura só.
 
 **Backends** (`LocalSpeechBackend`):
 
-- `WhisperKitBackend`: `WhisperKit` carregado pelo `WhisperKitLoader.loadKit` (download → compile → prewarm, com `checkCancellation` entre as fases). O vocabulário vira `promptTokens`. O kit é um `PromptSafeWhisperKit`, que contorna o EOT no prefill dos large-v3 (G-036).
+- `WhisperKitBackend`: `WhisperKit` carregado pelo `WhisperKitLoader.loadKit` (download → compile → prewarm, com `checkCancellation` entre as fases). Com o modelo completo no disco, o loader pula o download (o `WhisperKit.download` sempre pede a lista de arquivos ao repositório) e só cai nele se a carga local falhar, para buscar o que faltar. O vocabulário vira `promptTokens`. O kit é um `PromptSafeWhisperKit`, que contorna o EOT no prefill dos large-v3 (G-036).
 - `ParakeetBackend`: `AsrManager` do FluidAudio, `.ultra`, estado de decoder novo a cada ditado. Completa com silêncio o áudio com menos de 1 s. Ignora o vocabulário.
 
 **Ditado.** `LocalTranscriber` lê o `transcriptionTarget()` uma vez e usa esse snapshot na transcrição inteira, mesmo que uma troca termine no meio. Só manda o vocabulário quando `model.supportsVocabulary`. Sem modelo ativo, lança `LocalError.notReady`, que vira a notificação "Modelo local não está pronto". Com o motor `auto` e sem chave Groq, o factory usa só o local (nunca tenta o Groq, que só responderia 401). O `preflight` exige a chave apenas com o motor `groq`.
