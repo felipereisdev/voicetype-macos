@@ -214,9 +214,9 @@ struct OKInboxTests {
             #expect(attempts == 2, "atomic: \(atomic)")
             #expect(text == before + "\nEdição manual concorrente\n- 14:32 nova\n", "atomic: \(atomic)")
             #expect(try FileManager.default.contentsOfDirectory(atPath: staging(vault).path) == [])
-            // The outside version is back in the daily; what the swaps took out
-            // was our first try and the version read, held by nobody: deleted.
-            #expect(preservedTexts(vault) == [], "atomic: \(atomic)")
+            // Both swaps of the first attempt and the swap of the second took a version out of the daily: none is deleted.
+            let first = try String(contentsOf: daily, encoding: .utf8).replacingOccurrences(of: "\nEdição manual concorrente\n", with: "")
+            #expect(preservedTexts(vault) == [first, before + "\nEdição manual concorrente\n"].sorted(), "atomic: \(atomic)")
         }
     }
 
@@ -265,22 +265,15 @@ struct OKInboxTests {
         let before = try String(contentsOf: daily, encoding: .utf8)
         let outside = before + "\nEdição manual concorrente\n"
         var attempts = 0
-        var editor: FileHandle?
-        defer { try? editor?.close() }
         _ = try OKInbox.appendToDaily("nova", at: date, to: vault, timeZone: utc, beforeRename: { _ in
             attempts += 1
-            if attempts == 1 {
-                // An editor saves and keeps the file open, so its version can't be deleted.
-                try Data(outside.utf8).write(to: daily, options: .atomic)
-                editor = try FileHandle(forUpdating: daily)
-            }
+            if attempts == 1 { try Data(outside.utf8).write(to: daily, options: .atomic) }
         }, fault: { step in
             if step == .preserve { throw POSIXError(.EIO) }
         })
         #expect(attempts == 2)
         #expect(try String(contentsOf: daily, encoding: .utf8) == outside + "- 14:32 nova\n")
-        // Our first try, swapped back out and held by nobody, is deleted.
-        #expect(stagedTexts(vault) == [outside])
+        #expect(stagedTexts(vault) == [before + "- 14:32 nova\n", outside].sorted())
         #expect(preservedTexts(vault) == [])
     }
 
@@ -346,32 +339,7 @@ struct OKInboxTests {
         #expect(attempts == OKInbox.dailyAttempts)
         #expect(try String(contentsOf: daily, encoding: .utf8) == "Versão \(OKInbox.dailyAttempts)\n")
         #expect(try FileManager.default.contentsOfDirectory(atPath: staging(vault).path) == [])
-        // Each outside version went back into the daily; each try of ours was deleted.
-        #expect(preservedTexts(vault) == [])
-    }
-
-    @Test func dailyAppendKeepsNoCopyUnlessTheOldVersionIsHeld() throws {
-        // Nobody holds the daily: the version the append replaced holds
-        // nothing the new one lacks, and is deleted.
-        let vault = try makeVault()
-        defer { try? FileManager.default.removeItem(at: vault) }
-        let daily = try OKInbox.appendToDaily("primeira", at: date, to: vault, timeZone: utc)
-        _ = try OKInbox.appendToDaily("segunda", at: date, to: vault, timeZone: utc)
-        _ = try OKInbox.appendToDaily("terceira", at: date, to: vault, timeZone: utc)
-        #expect(try String(contentsOf: daily, encoding: .utf8).hasSuffix("- 14:32 primeira\n- 14:32 segunda\n- 14:32 terceira\n"))
-        #expect(!FileManager.default.fileExists(atPath: vault.appendingPathComponent(".ok/local/voicetype-preserved").path))
-        #expect(try FileManager.default.contentsOfDirectory(atPath: staging(vault).path) == [])
-
-        // A reader can't write: still deleted. A writer keeps it.
-        let reader = try FileHandle(forReadingFrom: daily)
-        defer { try? reader.close() }
-        _ = try OKInbox.appendToDaily("quarta", at: date, to: vault, timeZone: utc)
-        #expect(!FileManager.default.fileExists(atPath: vault.appendingPathComponent(".ok/local/voicetype-preserved").path))
-        let before = try String(contentsOf: daily, encoding: .utf8)
-        let writer = try FileHandle(forUpdating: daily)
-        defer { try? writer.close() }
-        _ = try OKInbox.appendToDaily("quinta", at: date, to: vault, timeZone: utc)
-        #expect(preservedTexts(vault) == [before])
+        #expect(preservedTexts(vault).count == OKInbox.dailyAttempts)
     }
 
     @Test func obsidianDailyHeaderUnchanged() {

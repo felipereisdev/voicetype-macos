@@ -127,8 +127,8 @@ public enum OKInbox {
     /// `beforeRename` sees the staged file right before each attempt to move
     /// it in (tests). The new daily goes in only over the version it was
     /// built from: a save in between is put back and the entry is inserted
-    /// again into it. A version taken out of the daily is only deleted when
-    /// nothing is lost by it (see `installDaily`).
+    /// again into it. Every version taken out of the daily is kept (see
+    /// `installDaily`).
     static func appendToDaily(
         _ text: String,
         at date: Date = Date(),
@@ -205,10 +205,8 @@ public enum OKInbox {
     /// swapped back and `false` returned for the caller to rebuild on it.
     ///
     /// What comes out of the daily (by either swap) is an inode someone may
-    /// still be writing to through a descriptor or mapping opened on the
-    /// daily. It's deleted only when it's the version we expected there
-    /// (`read`, or our `data` after swapping back) and nobody holds it
-    /// (`released`). Any other one goes, on success or on any error, to
+    /// still be writing to through a descriptor opened on the daily, so it's
+    /// never deleted, on success or on any error: it goes to
     /// `.ok/local/voicetype-preserved/inbox/`, or stays in the staging when
     /// that move fails. When the outside version can't be swapped back,
     /// `outsideVersionKept` says where it is.
@@ -236,10 +234,6 @@ public enum OKInbox {
         }
         tmpIsOurs = false
         try? OKDurableFile.syncDirectory(url.deletingLastPathComponent())
-        if released(tmp, holding: read) {
-            try? fileManager.removeItem(at: tmp)
-            return true
-        }
         let kept = retain(tmp, in: vault, fileManager: fileManager, fault: fault)
         guard let out = try? Data(contentsOf: kept) else { throw AppendError.outsideVersionKept(kept.path) }
         if out == read { return true }
@@ -251,14 +245,7 @@ public enum OKInbox {
         }
         try? OKDurableFile.syncDirectory(url.deletingLastPathComponent())
         try? OKDurableFile.syncDirectory(kept.deletingLastPathComponent())
-        if released(kept, holding: data) { try? fileManager.removeItem(at: kept) }
         return false
-    }
-
-    /// Nobody can still write `file` (`OKOpenFiles.isReleased`) and, read
-    /// after that check, it holds `data`: deleting it loses nothing.
-    private static func released(_ file: URL, holding data: Data) -> Bool {
-        OKOpenFiles.isReleased(file) && (try? Data(contentsOf: file)) == data
     }
 
     /// Moves a version taken out of the daily to

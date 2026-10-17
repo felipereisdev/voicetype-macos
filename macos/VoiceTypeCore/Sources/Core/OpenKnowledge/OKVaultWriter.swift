@@ -334,8 +334,8 @@ public struct OKVaultWriter: Sendable {
     }
 
     /// After the app finalized its local state: deletes the staging files
-    /// that hold our content or the approved original and that nobody can
-    /// still write (`deletable`), moves every other one to
+    /// that hold our content or the approved original and were never in a
+    /// destination, moves every other one to
     /// `.ok/local/voicetype-preserved/<txid>/`, and deletes the journal. The
     /// moved files that hold neither version are returned. Does nothing
     /// unless the journal is `committed`.
@@ -351,7 +351,7 @@ public struct OKVaultWriter: Sendable {
             guard let hash = try OKVaultTransaction.hash(file.url) else { continue }
             let ours = file.allowed.contains(hash)
             if ours { try tx.runFault(.cleanupBeforeDelete(file.url.lastPathComponent)) }
-            if ours, try tx.deletable(file) {
+            if ours, !file.mayBeOpen {
                 try FileManager.default.removeItem(at: file.url)
             } else if let divergence = try tx.preserve(file) {
                 kept.append(divergence)
@@ -520,8 +520,7 @@ final class OKVaultTransaction {
         var path: String
         var allowed: Set<String>
         /// The file was in a destination, so someone may still write through
-        /// a descriptor or a mapping they opened there: it's only deleted
-        /// once nobody holds it (`deletable`), otherwise moved.
+        /// a descriptor they opened there: it's moved, never deleted.
         var mayBeOpen: Bool
     }
 
@@ -822,8 +821,8 @@ final class OKVaultTransaction {
     /// The cleanup of a `rolledBack` journal, idempotent and never touching
     /// a destination: removes the folders the transaction created that are
     /// empty, deletes the staging files that are ours or the approved
-    /// original and that nobody can still write (`deletable`), and moves
-    /// the others to `.ok/local/voicetype-preserved/<txid>/`. Every
+    /// original and were never in a destination, and moves the ones that
+    /// were (`mayBeOpen`) to `.ok/local/voicetype-preserved/<txid>/`. Every
     /// attempt re-reads the staging: a file that changed since the rollback
     /// (written through a descriptor someone kept) is an outside version,
     /// recorded in the journal before going on and never deleted; so is a
@@ -839,7 +838,7 @@ final class OKVaultTransaction {
             guard let hash = try Self.hash(file.url) else { continue }
             if file.allowed.contains(hash) {
                 try runFault(.cleanupBeforeDelete(file.url.lastPathComponent))
-                if try deletable(file) {
+                if !file.mayBeOpen {
                     try fm.removeItem(at: file.url)
                 } else if let divergence = try preserve(file) {
                     divergences.append(divergence)
@@ -1071,17 +1070,6 @@ final class OKVaultTransaction {
             files.append(StagingFile(url: file(name), path: name, allowed: [], mayBeOpen: false))
         }
         return files
-    }
-
-    /// A file read as ours or the approved original can go: one that was
-    /// never in a destination, or one nobody holds any more
-    /// (`OKOpenFiles.isReleased`) and that, read again after that check,
-    /// still holds one of those versions. Once released, no one else can
-    /// write it, so that second read is what gets deleted.
-    func deletable(_ file: StagingFile) throws -> Bool {
-        guard file.mayBeOpen else { return true }
-        guard OKOpenFiles.isReleased(file.url), let hash = try Self.hash(file.url) else { return false }
-        return file.allowed.contains(hash)
     }
 
     /// Moves a staging file to `.ok/local/voicetype-preserved/<txid>/`, on
