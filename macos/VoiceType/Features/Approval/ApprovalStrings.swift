@@ -43,6 +43,17 @@ enum ApprovalStrings {
         return changed + " O registro e a transcrição já estão no MegaBrain." + kept
     }
 
+    /// The meeting is in the vault, but another app wrote a doc's old
+    /// version while it was taken out: that edit is only in its copy.
+    static let divergedTitle = "Edição externa guardada à parte"
+    static func divergedBody(title: String, _ divergences: [OKDivergence]) -> String {
+        let paths = divergences.map(\.path).reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
+        let copies = divergences.compactMap(\.preservedCopy)
+        let edited = paths.count == 1 ? paths[0] : "\(paths.count) arquivos (\(paths.joined(separator: ", ")))"
+        let kept = copies.count == 1 ? "A edição foi guardada em" : "As edições foram guardadas em"
+        return "“\(title)” foi gravada no MegaBrain, mas outro app editou \(edited) durante a gravação e o MegaBrain ficou com a versão do VoiceType. \(kept) \(copies.joined(separator: ", "))."
+    }
+
     static let incompleteTitle = "Gravação no MegaBrain incompleta"
     static func incompleteBody(_ paths: [String]) -> String {
         "Faltou gravar \(paths.joined(separator: ", ")). O VoiceType tenta de novo no próximo início ou ao abrir a reunião."

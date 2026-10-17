@@ -98,10 +98,11 @@ final class PendingApprovals {
             case let .committed(receipt):
                 let kept = try OKApprovalFinalizer.finalize(meetingDirectory: dir, receipt: receipt)
                 Self.log.info("recovered vault write finalized: \(dir.path, privacy: .public) preserved=\(kept.count)")
-                return []
-            case let .partial(receipt, conflicts, divergences):
+                return kept.isEmpty ? [] : [Notice(title: ApprovalStrings.divergedTitle, body: ApprovalStrings.divergedBody(title: title, kept))]
+            case let .partial(receipt, conflicts, _):
+                // `finish` reports every outside version, where it now is.
                 let kept = try OKApprovalFinalizer.finalizePartial(meetingDirectory: dir, receipt: receipt, conflicts: conflicts)
-                let preserved = (divergences + kept).compactMap(\.preservedCopy)
+                let preserved = kept.compactMap(\.preservedCopy)
                 return [Notice(title: ApprovalStrings.partialTitle,
                                body: ApprovalStrings.partialBody(count: conflicts.count, title: title, preserved: preserved))]
             case let .rolledBack(conflicts, divergences):

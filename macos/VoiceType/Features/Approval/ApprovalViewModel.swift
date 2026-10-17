@@ -354,7 +354,7 @@ final class ApprovalViewModel {
             switch result {
             case .reloaded:
                 return false
-            case let .done(receipt, finalizeError):
+            case let .done(receipt, kept, finalizeError):
                 committed = true
                 pending.refresh()
                 if let finalizeError {
@@ -362,6 +362,10 @@ final class ApprovalViewModel {
                     return false
                 }
                 await notifier.success(title: ApprovalStrings.committedTitle, body: receipt.paths.record)
+                if !kept.isEmpty {
+                    await notifier.error(title: ApprovalStrings.divergedTitle,
+                                         body: ApprovalStrings.divergedBody(title: s.proposal.note.summary.title, kept))
+                }
                 return true
             case let .partial(count, preserved):
                 pending.refresh()
@@ -395,7 +399,8 @@ final class ApprovalViewModel {
 
     private enum Outcome {
         case reloaded
-        case done(OKCommitReceipt, finalizeError: String?)
+        /// `kept`: the outside versions `finish` moved aside.
+        case done(OKCommitReceipt, kept: [OKDivergence], finalizeError: String?)
         case partial(count: Int, preserved: [String])
         case preconditionFailed
         case conflicts([OKConflict], [OKDivergence])
@@ -428,15 +433,16 @@ final class ApprovalViewModel {
             switch result {
             case let .committed(receipt):
                 do {
-                    try OKApprovalFinalizer.finalize(meetingDirectory: directory, receipt: receipt)
-                    return .done(receipt, finalizeError: nil)
+                    let kept = try OKApprovalFinalizer.finalize(meetingDirectory: directory, receipt: receipt)
+                    return .done(receipt, kept: kept, finalizeError: nil)
                 } catch {
                     Self.log.error("approval finalize failed: \(String(describing: error), privacy: .public)")
-                    return .done(receipt, finalizeError: error.localizedDescription)
+                    return .done(receipt, kept: [], finalizeError: error.localizedDescription)
                 }
-            case let .partial(receipt, conflicts, divergences):
+            case let .partial(receipt, conflicts, _):
+                // `finish` reports every outside version, where it now is.
                 let kept = try OKApprovalFinalizer.finalizePartial(meetingDirectory: directory, receipt: receipt, conflicts: conflicts)
-                return .partial(count: conflicts.count, preserved: (divergences + kept).compactMap(\.preservedCopy))
+                return .partial(count: conflicts.count, preserved: kept.compactMap(\.preservedCopy))
             case let .conflicts(conflicts, divergences):
                 return .conflicts(conflicts, divergences)
             case .preconditionFailed:

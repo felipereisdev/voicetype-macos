@@ -17,6 +17,13 @@ private func text(_ relPath: String, in root: URL) -> String? {
     (try? Data(contentsOf: root.appendingPathComponent(relPath))).map { String(decoding: $0, as: UTF8.self) }
 }
 
+/// Replaces the content through a descriptor someone kept open.
+private func writeThrough(_ editor: FileHandle, _ content: String) throws {
+    try editor.truncate(atOffset: 0)
+    try editor.write(contentsOf: Data(content.utf8))
+    try editor.synchronize()
+}
+
 /// The meeting record's op (`p5/reunioes/<date>-<slug>.md`).
 private func recordIndex(_ ops: [OKVaultOp]) -> Int {
     ops.firstIndex { $0.path.hasPrefix("p5/reunioes/") && !$0.path.contains("/transcricoes/") && $0.path.hasSuffix(".md") }!
@@ -96,6 +103,20 @@ final class PendingApprovalsTests: XCTestCase {
 
     private func hasProposal(_ dir: URL) -> Bool {
         fm.fileExists(atPath: dir.appendingPathComponent(MeetingProposal.fileName).path)
+    }
+
+    /// The copies in `.ok/local/voicetype-preserved/<txid>/` holding
+    /// `content`, spelled from the vault root the journal records.
+    private func preservedCopies(_ vault: URL, holding content: String) throws -> [String] {
+        let root = try OKVaultIdentity.of(vault).root + "/.ok/local/voicetype-preserved"
+        var found: [String] = []
+        for tx in (try? fm.contentsOfDirectory(atPath: root)) ?? [] {
+            for name in try fm.contentsOfDirectory(atPath: root + "/" + tx) {
+                let path = root + "/" + tx + "/" + name
+                if (try? Data(contentsOf: URL(fileURLWithPath: path))) == Data(content.utf8) { found.append(path) }
+            }
+        }
+        return found.sorted()
     }
 
     /// A meeting directory under `base` with its proposal and `pipeline.json`
@@ -227,7 +248,37 @@ final class PendingApprovalsTests: XCTestCase {
         XCTAssertNotNil(text(paths.record, in: vault))
         XCTAssertEqual(text(gotchaPath, in: vault), newGotcha)
         XCTAssertEqual(brokenLinks(vault), [])
+        // The gotcha's old version is kept aside as is: no notice.
+        XCTAssertEqual(try preservedCopies(vault, holding: "old gotcha\n").count, 1)
         XCTAssertTrue(notices.isEmpty, "\(notices)")
+    }
+
+    /// The same crash, but an editor that kept the gotcha open wrote its old
+    /// version after the receipt: the launch finalizes, `finish` keeps that
+    /// edit aside, and the notice says where it is.
+    func testBootstrapAnnouncesOutsideEditKeptByFinish() throws {
+        defer { removeTemps() }
+        let base = try makeTemp()
+        let vault = try makeVault()
+        let editor = try FileHandle(forUpdating: vault.appendingPathComponent(gotchaPath))
+        defer { try? editor.close() }
+        let c = try interruptedCommit(base: base, vault: vault) { _, point in
+            guard point == .afterReceipt else { return }
+            try writeThrough(editor, "editado fora\n")
+            throw OKSimulatedCrash()
+        }
+
+        let pending = pending(base)
+        pending.bootstrap()
+
+        XCTAssertFalse(MeetingProposalStore.hasJournal(c.dir))
+        XCTAssertFalse(hasProposal(c.dir))
+        XCTAssertTrue(pending.items.isEmpty)
+        XCTAssertEqual(text(gotchaPath, in: vault), newGotcha)
+        let copies = try preservedCopies(vault, holding: "editado fora\n")
+        XCTAssertEqual(copies.count, 1)
+        XCTAssertEqual(notices.map(\.title), ["Edição externa guardada à parte"])
+        XCTAssertEqual(notices.first?.body, "“Sprint review” foi gravada no MegaBrain, mas outro app editou \(gotchaPath) durante a gravação e o MegaBrain ficou com a versão do VoiceType. A edição foi guardada em \(copies.first ?? "").")
     }
 
     func testBootstrapCompletesInterruptedCompletionAndReviewsConflicts() throws {

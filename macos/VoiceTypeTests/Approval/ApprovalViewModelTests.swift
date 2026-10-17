@@ -18,6 +18,13 @@ private func text(_ relPath: String, in root: URL) -> String? {
     (try? Data(contentsOf: root.appendingPathComponent(relPath))).map { String(decoding: $0, as: UTF8.self) }
 }
 
+/// Replaces the content through a descriptor someone kept open.
+private func writeThrough(_ editor: FileHandle, _ content: String) throws {
+    try editor.truncate(atOffset: 0)
+    try editor.write(contentsOf: Data(content.utf8))
+    try editor.synchronize()
+}
+
 private func textHash(_ s: String) -> String { OKPath.contentHash(Data(s.utf8)) }
 
 private struct NotLoggedIn: LocalizedError {
@@ -248,6 +255,20 @@ final class ApprovalViewModelTests: XCTestCase {
         fm.fileExists(atPath: dir.appendingPathComponent(name).path)
     }
 
+    /// The copies in `.ok/local/voicetype-preserved/<txid>/` holding
+    /// `content`, spelled from the vault root the journal records.
+    private func preservedCopies(_ vault: URL, holding content: String) throws -> [String] {
+        let root = try OKVaultIdentity.of(vault).root + "/.ok/local/voicetype-preserved"
+        var found: [String] = []
+        for tx in (try? fm.contentsOfDirectory(atPath: root)) ?? [] {
+            for name in try fm.contentsOfDirectory(atPath: root + "/" + tx) {
+                let path = root + "/" + tx + "/" + name
+                if (try? Data(contentsOf: URL(fileURLWithPath: path))) == Data(content.utf8) { found.append(path) }
+            }
+        }
+        return found.sorted()
+    }
+
     /// Files outside the vault's own `.ok/`, by vault-relative path.
     private func snapshot(_ vault: URL) -> [String: String] {
         var files: [String: String] = [:]
@@ -352,7 +373,37 @@ final class ApprovalViewModelTests: XCTestCase {
         XCTAssertNotNil(text(decisionPath, in: vault))
         XCTAssertEqual(text(gotchaPath, in: vault), newGotcha)
         XCTAssertEqual(brokenRelativeLinks(vault), [])
-        XCTAssertEqual(center.addedRequests.count, 1)
+        // The gotcha's old version is kept aside as is: only the success.
+        XCTAssertEqual(try preservedCopies(vault, holding: oldGotcha).count, 1)
+        XCTAssertEqual(center.addedRequests.map(\.content.body), ["✓ Reunião gravada no MegaBrain — \(p.paths!.record)"])
+    }
+
+    /// An editor kept the gotcha open and, after the receipt, writes the old
+    /// version `finish` then keeps aside: the commit still succeeds, and the
+    /// user is told where that edit is.
+    func testOutsideEditKeptByFinishIsAnnouncedWithItsCopy() async throws {
+        let vault = try makeVault()
+        try await useVault(vault)
+        let (dir, p) = try seedManual(vault: vault)
+        let editor = try FileHandle(forUpdating: vault.appendingPathComponent(gotchaPath))
+        defer { try? editor.close() }
+        let vm = makeVM(dir, fault: { point in
+            if point == .afterReceipt { try writeThrough(editor, "editado fora\n") }
+        })
+        await vm.load()
+        for _ in 0..<4 { vm.approve() }
+
+        let ok = await vm.commit()
+        XCTAssertTrue(ok, vm.banner ?? "")
+        XCTAssertFalse(MeetingProposalStore.hasJournal(dir))
+        XCTAssertFalse(exists(MeetingProposal.fileName, in: dir))
+        XCTAssertEqual(text(gotchaPath, in: vault), newGotcha)
+        let copies = try preservedCopies(vault, holding: "editado fora\n")
+        XCTAssertEqual(copies.count, 1)
+        XCTAssertEqual(center.addedRequests.map(\.content.body), [
+            "✓ Reunião gravada no MegaBrain — \(p.paths!.record)",
+            "❌ Edição externa guardada à parte — " + "“Sprint review” foi gravada no MegaBrain, mas outro app editou \(gotchaPath) durante a gravação e o MegaBrain ficou com a versão do VoiceType. A edição foi guardada em \(copies.first ?? "").",
+        ])
     }
 
     func testCatalogChangedAfterLoadRedistillsAndWritesNothing() async throws {
