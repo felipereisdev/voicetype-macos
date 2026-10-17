@@ -310,6 +310,34 @@ struct OKInboxTests {
         #expect(try String(contentsOf: daily, encoding: .utf8) == during + "- 14:32 nova\n")
     }
 
+    @Test func dailyWriterWhoseDescriptorMovesSurvives() throws {
+        // The editor's descriptor moves to another number while the append
+        // takes its inode out of the daily: the version is kept anyway, and
+        // a write after the append lands in the kept copy.
+        let vault = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault) }
+        let daily = try OKInbox.appendToDaily("anterior", at: date, to: vault, timeZone: utc)
+        let before = try String(contentsOf: daily, encoding: .utf8)
+        var fd = open(daily.path, O_RDWR)
+        try #require(fd >= 0)
+        defer { close(fd) }
+        _ = try OKInbox.appendToDaily("nova", at: date, to: vault, timeZone: utc, beforeRename: nil, fault: { step in
+            if step == .preserve {
+                let moved = dup(fd)
+                close(fd)
+                fd = moved
+            }
+        })
+        #expect(try String(contentsOf: daily, encoding: .utf8) == before + "- 14:32 nova\n")
+        #expect(preservedTexts(vault) == [before])
+
+        let after = before + "\nPelo descritor movido\n"
+        #expect(ftruncate(fd, 0) == 0)
+        #expect(pwrite(fd, after, after.utf8.count, 0) == after.utf8.count)
+        fsync(fd)
+        #expect(preservedTexts(vault) == [after])
+    }
+
     @Test func dailyCreatedBetweenReadAndRenameIsNotReplaced() throws {
         let vault = try makeVault()
         defer { try? FileManager.default.removeItem(at: vault) }

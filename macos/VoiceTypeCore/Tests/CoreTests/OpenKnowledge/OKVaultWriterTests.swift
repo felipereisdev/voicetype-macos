@@ -6,6 +6,19 @@ import Testing
 
 private struct Boom: Error {}
 
+/// A descriptor a test holds like an editor would; `move` dups it to a new
+/// number and closes the old one, as a process shuffling its descriptors.
+private final class Descriptor: @unchecked Sendable {
+    private(set) var fd: Int32
+    init(_ fd: Int32) { self.fd = fd }
+    func move() {
+        let moved = dup(fd)
+        Darwin.close(fd)
+        fd = moved
+    }
+    func close() { if fd >= 0 { Darwin.close(fd) } }
+}
+
 private func h(_ text: String) -> String { OKPath.contentHash(Data(text.utf8)) }
 
 /// An outside write: in place, like an editor saving.
@@ -1424,6 +1437,60 @@ struct OKVaultWriterTests {
             #expect(stagingEntries(vault).isEmpty)
             #expect(try phase(journal) == nil)
             #expect(text(vault, "b.md") == "B\n")
+        }
+    }
+
+    enum Holder: CaseIterable { case nobody, reader, writer, movedWriter, mapping }
+
+    @Test(arguments: Holder.allCases)
+    func finishKeepsThePreimageWhoeverHoldsIt(_ holder: Holder) throws {
+        // The swap moves b.md's inode (E) to pre-0. Whether anyone can still
+        // write it isn't decided by looking at other processes: it's kept in
+        // every case, even when the writer's descriptor moves to another
+        // number during the cleanup, and a later write lands in the copy.
+        let vault = try makeVault(["b.md": "A\n"])
+        let b = vault.appendingPathComponent("b.md")
+        let fd = holder == .nobody || holder == .mapping ? -1 : open(b.path, holder == .reader ? O_RDONLY : O_RDWR)
+        let held = Descriptor(fd)
+        defer { held.close() }
+        var mapped: UnsafeMutableRawPointer?
+        if holder == .mapping {
+            let mfd = open(b.path, O_RDWR)
+            try #require(mfd >= 0)
+            let p = mmap(nil, 2, PROT_READ | PROT_WRITE, MAP_SHARED, mfd, 0)
+            close(mfd)
+            try #require(p != MAP_FAILED)
+            mapped = p
+        }
+        defer { if let mapped { munmap(mapped, 2) } }
+        let journal = newJournal()
+        let result = try makeWriter(vault, journal).commit(
+            [.update(path: "b.md", content: "B\n", expectedHash: h("A\n"), itemID: nil)],
+            receipt: try receipt(vault), precondition: { true }
+        )
+        #expect(receiptOf(result) != nil)
+        let txid = try #require(try OKVaultWriter.Journal.load(from: journal)?.txid)
+
+        #expect(try OKVaultWriter.finish(journalDirectory: journal, fault: { point in
+            if holder == .movedWriter, point == .cleanupBeforeDelete("pre-0") { held.move() }
+        }) == [])
+        let copy = vault.appendingPathComponent(".ok/local/voicetype-preserved/\(txid.uuidString)/pre-0")
+        #expect(contents(copy.path) == "A\n")
+        #expect(stagingEntries(vault).isEmpty)
+        #expect(try phase(journal) == nil)
+        #expect(text(vault, "b.md") == "B\n")
+
+        switch holder {
+        case .writer, .movedWriter:
+            #expect(pwrite(held.fd, "Z", 1, 0) == 1)
+            fsync(held.fd)
+            #expect(contents(copy.path) == "Z\n")
+        case .mapping:
+            mapped?.storeBytes(of: UInt8(ascii: "Z"), as: UInt8.self)
+            if let mapped { msync(mapped, 2, MS_SYNC) }
+            #expect(contents(copy.path) == "Z\n")
+        case .nobody, .reader:
+            break
         }
     }
 
