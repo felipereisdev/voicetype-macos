@@ -1427,6 +1427,83 @@ struct OKVaultWriterTests {
         }
     }
 
+    enum Holder: CaseIterable { case nobody, reader, writer, mapping, hardLink }
+
+    @Test(arguments: Holder.allCases)
+    func finishDeletesThePreimageOnlyWhenNobodyHoldsIt(_ holder: Holder) throws {
+        // The swap moves b.md's inode (E) to pre-0. When nobody can write it
+        // (no holder, or only a reader) it can't change any more and is
+        // deleted; a writer, a writable mapping or another link keeps it.
+        let vault = try makeVault(["b.md": "A\n"])
+        let b = vault.appendingPathComponent("b.md")
+        var mapped: UnsafeMutableRawPointer?
+        var release: () -> Void = {}
+        defer { release() }
+        switch holder {
+        case .nobody:
+            break
+        case .reader:
+            let reader = try FileHandle(forReadingFrom: b)
+            release = { try? reader.close() }
+        case .writer:
+            let editor = try FileHandle(forUpdating: b)
+            release = { try? editor.close() }
+        case .mapping:
+            // A writable shared mapping outlives its descriptor.
+            let fd = open(b.path, O_RDWR)
+            try #require(fd >= 0)
+            let p = mmap(nil, 2, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0)
+            close(fd)
+            try #require(p != MAP_FAILED)
+            mapped = p
+            release = { munmap(p, 2) }
+        case .hardLink:
+            let local = vault.appendingPathComponent(".ok/local", isDirectory: true)
+            try FileManager.default.createDirectory(at: local, withIntermediateDirectories: true)
+            try FileManager.default.linkItem(at: b, to: local.appendingPathComponent("b-link"))
+        }
+        let journal = newJournal()
+        let result = try makeWriter(vault, journal).commit(
+            [.update(path: "b.md", content: "B\n", expectedHash: h("A\n"), itemID: nil)],
+            receipt: try receipt(vault), precondition: { true }
+        )
+        #expect(receiptOf(result) != nil)
+        let txid = try #require(try OKVaultWriter.Journal.load(from: journal)?.txid)
+        let preserved = vault.appendingPathComponent(".ok/local/voicetype-preserved")
+
+        #expect(try OKVaultWriter.finish(journalDirectory: journal) == [])
+        #expect(stagingEntries(vault).isEmpty)
+        #expect(try phase(journal) == nil)
+        #expect(text(vault, "b.md") == "B\n")
+        if holder == .nobody || holder == .reader {
+            #expect(!FileManager.default.fileExists(atPath: preserved.path))
+            return
+        }
+        let copy = preserved.appendingPathComponent("\(txid.uuidString)/pre-0")
+        #expect(contents(copy.path) == "A\n")
+        if let mapped {
+            mapped.storeBytes(of: UInt8(ascii: "Z"), as: UInt8.self)
+            msync(mapped, 2, MS_SYNC)
+            #expect(contents(copy.path) == "Z\n")
+        }
+    }
+
+    @Test func releasedArtifactIsDeletedByRollbackCleanup() throws {
+        // As unchangedArtifactIsRetainedByRollbackCleanup, with nobody holding b.md.
+        let vault = try makeVault(["b.md": "A\n"])
+        let original = snapshot(vault)
+        let journal = newJournal()
+        var writer = try makeWriter(vault, journal)
+        writer.fault = { if $0 == .afterApply(0) { throw OKSimulatedCrash() } }
+        #expect(throws: OKSimulatedCrash.self) { try writer.commit(updateThenCreate, receipt: try receipt(vault), precondition: { true }) }
+
+        #expect(try OKVaultWriter.recover(journalDirectory: journal) == .rolledBack(conflicts: [], divergences: []))
+        #expect(try phase(journal) == nil)
+        #expect(stagingEntries(vault).isEmpty)
+        #expect(snapshot(vault) == original)
+        #expect(!FileManager.default.fileExists(atPath: vault.appendingPathComponent(".ok/local/voicetype-preserved").path))
+    }
+
     @Test func recoverUsesJournalVaultNotCurrentConfig() throws {
         let vaultA = try makeVault(["b.md": "A\n"])
         let vaultB = try makeVault(["b.md": "A\n"])
