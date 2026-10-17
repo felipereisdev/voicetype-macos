@@ -1403,6 +1403,36 @@ struct OKVaultWriterTests {
         #expect(try OKVaultWriter.finish(journalDirectory: journal) == [])
     }
 
+    @Test func finishRetriedAfterAFailureStillReportsTheOutsideVersion() throws {
+        // b.md's pre-image holds an outside version; the first attempt moves
+        // it and fails on c.md's, so only the retry gets to return.
+        let vault = try makeVault(["b.md": "A\n", "c.md": "C\n"])
+        let journal = newJournal()
+        let result = try makeWriter(vault, journal).commit(
+            [.update(path: "b.md", content: "B\n", expectedHash: h("A\n"), itemID: nil),
+             .update(path: "c.md", content: "D\n", expectedHash: h("C\n"), itemID: nil)],
+            receipt: try receipt(vault), precondition: { true }
+        )
+        #expect(receiptOf(result) != nil)
+        let txid = try #require(try OKVaultWriter.Journal.load(from: journal)?.txid)
+        let staging = stagingRoot(vault).appendingPathComponent(txid.uuidString)
+        try Data("X\n".utf8).write(to: staging.appendingPathComponent("pre-0"))
+        let preserved = vault.appendingPathComponent(".ok/local/voicetype-preserved/\(txid.uuidString)")
+
+        #expect(throws: OKSimulatedCrash.self) {
+            try OKVaultWriter.finish(journalDirectory: journal, fault: { if $0 == .cleanupBeforeDelete("pre-1") { throw OKSimulatedCrash() } })
+        }
+        #expect(contents(preserved.appendingPathComponent("pre-0").path) == "X\n")
+        #expect(try phase(journal) == .committed)
+
+        let kept = try OKVaultWriter.finish(journalDirectory: journal)
+        #expect(kept == [OKDivergence(path: "b.md", preservedCopy: preserved.appendingPathComponent("pre-0").path,
+                                      reason: OKVaultTransaction.foreignReason)])
+        #expect(contents(preserved.appendingPathComponent("pre-1").path) == "C\n")
+        #expect(stagingEntries(vault).isEmpty)
+        #expect(try phase(journal) == nil)
+    }
+
     @Test func finishPreservesArtifactWrittenDuringCleanup() throws {
         // An editor opened b.md before the commit; the swap moves that inode (E) to pre-0.
         for writes in [true, false] {
