@@ -342,6 +342,19 @@ struct ConfigStoreTests {
         #expect(reloaded.openKnowledgeVaultPath == "/tmp/MB")
     }
 
+    @Test("localTranscriptionModel survives save + reload")
+    func roundTripsLocalTranscriptionModel() async throws {
+        let (store, dir, _) = try makeTempStore()
+        defer { cleanup(dir) }
+
+        var next = AppConfig()
+        next.localTranscriptionModel = "parakeet-ultra"
+        try await store.save(next)
+
+        let reloaded = try await store.load()
+        #expect(reloaded == next)
+    }
+
     @Test("first run seeds the refine shortcut by hardware")
     func firstRunSeedsShortcut() async throws {
         let (fnStore, fnDir, _) = try makeTempStore()
