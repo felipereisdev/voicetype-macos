@@ -1,6 +1,6 @@
 import Foundation
 
-/// A MegaBrain project: a root folder whose `index.md` says `type: indice`.
+/// An OpenKnowledge project: a root folder whose `index.md` says `type: indice`.
 public struct OKProject: Codable, Equatable, Sendable, Identifiable {
     public var slug: String
     public var title: String

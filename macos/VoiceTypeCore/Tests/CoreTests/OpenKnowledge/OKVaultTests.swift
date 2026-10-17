@@ -51,9 +51,18 @@ struct OKVaultTests {
     }
 
     @Test func urlExpandsTildeAsDirectory() {
-        let url = OKVault.url("~/MegaBrain")
-        #expect(url.path == (NSHomeDirectory() as NSString).appendingPathComponent("MegaBrain"))
+        let url = OKVault.url("~/Vault")
+        #expect(url.path == (NSHomeDirectory() as NSString).appendingPathComponent("Vault"))
         #expect(url.hasDirectoryPath)
         #expect(OKVault.url("/tmp/MB").path == "/tmp/MB")
+    }
+
+    @Test func blankPathIsUnsetAndNeverAProjectRoot() {
+        for path in ["", "  ", "\n"] {
+            #expect(!OKVault.isConfigured(path))
+            #expect(OKVault.url(path) == OKVault.unset)
+        }
+        #expect(!OKVault.isProjectRoot(OKVault.unset))
+        #expect(OKVault.isConfigured("~/Vault"))
     }
 }

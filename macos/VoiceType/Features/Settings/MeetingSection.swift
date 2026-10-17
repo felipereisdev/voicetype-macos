@@ -37,8 +37,13 @@ struct MeetingSection: View {
                         Button(SettingsStrings.meetingShowInFinder) {
                             NSWorkspace.shared.activateFileViewerSelecting([OKVault.url(snapshot.config.openKnowledgeVaultPath)])
                         }
+                        .disabled(!OKVault.isConfigured(snapshot.config.openKnowledgeVaultPath))
                     }
-                    if !OKVault.isProjectRoot(OKVault.url(snapshot.config.openKnowledgeVaultPath)) {
+                    if !OKVault.isConfigured(snapshot.config.openKnowledgeVaultPath) {
+                        Text(SettingsStrings.meetingVaultUnset)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    } else if !OKVault.isProjectRoot(OKVault.url(snapshot.config.openKnowledgeVaultPath)) {
                         Text(SettingsStrings.meetingVaultNotOK)
                             .font(.caption)
                             .foregroundStyle(.red)
@@ -227,7 +232,9 @@ struct MeetingSection: View {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
-        panel.directoryURL = URL(fileURLWithPath: (current as NSString).expandingTildeInPath)
+        if !current.isEmpty {
+            panel.directoryURL = URL(fileURLWithPath: (current as NSString).expandingTildeInPath)
+        }
         guard panel.runModal() == .OK, let url = panel.url else { return nil }
         let home = NSHomeDirectory()
         return url.path.hasPrefix(home + "/") ? "~" + url.path.dropFirst(home.count) : url.path

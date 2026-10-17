@@ -156,7 +156,7 @@ Uma única cena `Window("VoiceType", id: "main")` (`MainWindowView`): `Navigatio
 
 Autosalva em ~400 ms debounce. Indicador `Salvando…` / `Salvo` no canto.
 
-## OpenKnowledge (MegaBrain)
+## OpenKnowledge
 
 Com **Reuniões → Vault = OpenKnowledge** (`AppConfig.meetingVaultKind = .openKnowledge`, raiz em `openKnowledgeVaultPath`, a pasta que tem `.ok/`), a reunião não vai direto para o vault: vira uma **pendência** que o usuário aprova passo a passo. Nada pede atenção sozinho: o menu mostra "N reuniões aguardando aprovação" e a janela só abre por "Revisar…". A lógica fica em `VoiceTypeCore/Sources/Core/OpenKnowledge/`; o app tem o ramo OK do `MeetingProcessor`, `PendingApprovals` (lista + recuperação), `ApprovalRouter` e a janela `Window(id: "approval")` (`ApprovalWindowView` + `ApprovalViewModel`).
 

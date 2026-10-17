@@ -57,7 +57,7 @@ final class ApprovalViewModel {
     @ObservationIgnored private let assistantFactory: (String?) -> (any OKAssistant)?
     @ObservationIgnored private let now: @Sendable () -> Date
     @ObservationIgnored private let writerFault: (@Sendable (OKFaultPoint) throws -> Void)?
-    @ObservationIgnored private var vault = OKVault.url("~/MegaBrain")
+    @ObservationIgnored private var vault = OKVault.unset
     @ObservationIgnored private var claudeCLIPath: String?
 
     private static let log = Logger(subsystem: "com.voicetype.app", category: "approvals")

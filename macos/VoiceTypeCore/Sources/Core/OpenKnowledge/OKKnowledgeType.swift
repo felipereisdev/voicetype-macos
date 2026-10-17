@@ -1,6 +1,6 @@
 import Foundation
 
-/// The seven knowledge types of a MegaBrain project. Folder titles,
+/// The seven knowledge types of an OpenKnowledge project. Folder titles,
 /// descriptions and tags mirror `<project>/<folder>/.ok/frontmatter.yml`;
 /// `indexHeading` is the `###` section of the project's `index.md`.
 public enum OKKnowledgeType: String, Codable, CaseIterable, Sendable {

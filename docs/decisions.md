@@ -176,7 +176,7 @@ Decisões principais do native macOS build. Cada ADR registra contexto, escolha,
 
 ## ADR-012 — Reuniões no OpenKnowledge via proposta + aprovação + escrita transacional direta no disco
 
-**Contexto:** o MegaBrain é um projeto OpenKnowledge editado ao mesmo tempo pelo servidor do OK (CRDT, auto-save, auto-commit), por agentes e pelo usuário. A spec pede que nada entre sem o usuário ver (reunião vira pendência, aprovação passo a passo), que nada seja sobrescrito sem revisão, que uma gravação pela metade nunca deixe link quebrado (registro sem transcrição, ADR citando reunião inexistente) e que fechar a janela ou o app morrer no meio não perca nem estrague nada. Anti-objetivos: abrir a janela sozinha, notificação pedindo aprovação, dependência de servidor rodando.
+**Contexto:** o vault é um projeto OpenKnowledge editado ao mesmo tempo pelo servidor do OK (CRDT, auto-save, auto-commit), por agentes e pelo usuário. A spec pede que nada entre sem o usuário ver (reunião vira pendência, aprovação passo a passo), que nada seja sobrescrito sem revisão, que uma gravação pela metade nunca deixe link quebrado (registro sem transcrição, ADR citando reunião inexistente) e que fechar a janela ou o app morrer no meio não perca nem estrague nada. Anti-objetivos: abrir a janela sozinha, notificação pedindo aprovação, dependência de servidor rodando.
 
 **Decisão:** a reunião processada vira `ok-proposal.json`; a janela grava o progresso por geração; "Gravar" passa por `OKVaultWriter.commit`, que escreve os arquivos direto no disco do vault:
 - intenção durável primeiro (journal com `F_FULLFSYNC` + staging em `.ok/local/voicetype-staging/`, ignorado pelo git do OK);

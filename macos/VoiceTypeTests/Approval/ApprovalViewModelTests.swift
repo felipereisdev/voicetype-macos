@@ -173,7 +173,7 @@ final class ApprovalViewModelTests: XCTestCase {
         let vault = try makeTemp()
         try fm.createDirectory(at: vault.appendingPathComponent(".ok"), withIntermediateDirectories: true)
         try put("---\ntitle: p5\ndescription: Projeto p5.\ntype: indice\nproject: p5\n---\n# p5\n\n## Conhecimento registrado\n", "p5/index.md", in: vault)
-        try put("# MegaBrain\n\n## Projetos\n\n- [p5 — Projeto p5.](./p5/index.md)\n", "README.md", in: vault)
+        try put("# Vault\n\n## Projetos\n\n- [p5 — Projeto p5.](./p5/index.md)\n", "README.md", in: vault)
         try put(oldGotcha, gotchaPath, in: vault)
         return vault
     }
@@ -375,7 +375,7 @@ final class ApprovalViewModelTests: XCTestCase {
         XCTAssertEqual(brokenRelativeLinks(vault), [])
         // The gotcha's old version is kept aside as is: only the success.
         XCTAssertEqual(try preservedCopies(vault, holding: oldGotcha).count, 1)
-        XCTAssertEqual(center.addedRequests.map(\.content.body), ["✓ Reunião gravada no MegaBrain — \(p.paths!.record)"])
+        XCTAssertEqual(center.addedRequests.map(\.content.body), ["✓ Reunião gravada no vault — \(p.paths!.record)"])
     }
 
     /// An editor kept the gotcha open and, after the receipt, writes the old
@@ -401,8 +401,8 @@ final class ApprovalViewModelTests: XCTestCase {
         let copies = try preservedCopies(vault, holding: "editado fora\n")
         XCTAssertEqual(copies.count, 1)
         XCTAssertEqual(center.addedRequests.map(\.content.body), [
-            "✓ Reunião gravada no MegaBrain — \(p.paths!.record)",
-            "❌ Edição externa guardada à parte — " + "“Sprint review” foi gravada no MegaBrain, mas outro app editou \(gotchaPath) durante a gravação e o MegaBrain ficou com a versão do VoiceType. A edição foi guardada em \(copies.first ?? "").",
+            "✓ Reunião gravada no vault — \(p.paths!.record)",
+            "❌ Edição externa guardada à parte — " + "“Sprint review” foi gravada no vault, mas outro app editou \(gotchaPath) durante a gravação e o vault ficou com a versão do VoiceType. A edição foi guardada em \(copies.first ?? "").",
         ])
     }
 

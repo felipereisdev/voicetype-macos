@@ -68,7 +68,7 @@ public struct OKDistilledLink: Codable, Equatable, Sendable {
 }
 
 /// The meeting record (`type: reuniao`) and transcript (`type: transcricao`)
-/// in the MegaBrain format: relative Markdown links, never wikilinks, and
+/// in the OpenKnowledge vault format: relative Markdown links, never wikilinks, and
 /// every model-written frontmatter value through `yamlString`.
 public enum OKMeetingRenderer {
     public static let distilledHeading = "## Conhecimento destilado"

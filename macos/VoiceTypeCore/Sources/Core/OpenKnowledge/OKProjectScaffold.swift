@@ -12,7 +12,7 @@ public struct OKFileWrite: Equatable, Sendable {
     }
 }
 
-/// A new MegaBrain project (same layout as the `novo-projeto` skill, plus
+/// A new OpenKnowledge project (same layout as the `novo-projeto` skill, plus
 /// `reunioes/`), its line in the vault README and the links that approved
 /// docs add to the project's `index.md`. Pure text in, text out.
 public enum OKProjectScaffold {

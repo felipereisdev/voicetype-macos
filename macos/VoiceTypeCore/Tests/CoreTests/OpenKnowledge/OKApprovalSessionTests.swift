@@ -29,7 +29,7 @@ struct OKApprovalSessionTests {
     private func makeVault() throws -> URL {
         let vault = try makeTemp()
         try fm.createDirectory(at: vault.appendingPathComponent(".ok"), withIntermediateDirectories: true)
-        try put("# MegaBrain\n\n## Projetos\n\n- [p5 — Projeto p5](./p5/index.md)\n", "README.md", in: vault)
+        try put("# Vault\n\n## Projetos\n\n- [p5 — Projeto p5](./p5/index.md)\n", "README.md", in: vault)
         try put("---\ntitle: p5\ndescription: Projeto p5.\ntype: indice\nproject: p5\n---\n# p5\n\n## Conhecimento registrado\n\n### Arquitetura\n\n- [A](./arquitetura/a.md)\n",
                 "p5/index.md", in: vault)
         try put("old gotcha\n", "p5/gotchas/g.md", in: vault)

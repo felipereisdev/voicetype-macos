@@ -5,7 +5,7 @@ import Testing
 @Suite("OKProjectScaffold")
 struct OKProjectScaffoldTests {
 
-    /// Excerpt of `/Users/freis/MegaBrain/p5/index.md` (2026-10-16): `### Decisões (ADR)`
+    /// Excerpt of a real OpenKnowledge project index (2026-10-16): `### Decisões (ADR)`
     /// in the middle, `### Glossário` last.
     private let p5Index = """
     ---
@@ -76,14 +76,14 @@ struct OKProjectScaffoldTests {
     }
 
     @Test func readmeGetsProjectAfterLastItem() {
-        let readme = "# MegaBrain\n\n## Projetos\n\n- [p5 — X](./p5/index.md)\n\n_Novos projetos entram aqui._\n\n## Regras\n\n- uma\n"
+        let readme = "# Vault\n\n## Projetos\n\n- [p5 — X](./p5/index.md)\n\n_Novos projetos entram aqui._\n\n## Regras\n\n- uma\n"
         #expect(OKProjectScaffold.readmeAddingProject(readme, project: "acme", description: "Cobrança [beta]") ==
-            "# MegaBrain\n\n## Projetos\n\n- [p5 — X](./p5/index.md)\n- [acme — Cobrança \\[beta\\]](./acme/index.md)\n\n_Novos projetos entram aqui._\n\n## Regras\n\n- uma\n")
+            "# Vault\n\n## Projetos\n\n- [p5 — X](./p5/index.md)\n- [acme — Cobrança \\[beta\\]](./acme/index.md)\n\n_Novos projetos entram aqui._\n\n## Regras\n\n- uma\n")
     }
 
     @Test func readmeWithoutProjectsSectionGetsOne() {
-        #expect(OKProjectScaffold.readmeAddingProject("# MegaBrain\n\nTexto.\n", project: "acme", description: "Acme") ==
-            "# MegaBrain\n\nTexto.\n\n## Projetos\n\n- [acme — Acme](./acme/index.md)\n")
+        #expect(OKProjectScaffold.readmeAddingProject("# Vault\n\nTexto.\n", project: "acme", description: "Acme") ==
+            "# Vault\n\nTexto.\n\n## Projetos\n\n- [acme — Acme](./acme/index.md)\n")
     }
 
     @Test func readmeAlreadyListingProjectIsUnchanged() {
