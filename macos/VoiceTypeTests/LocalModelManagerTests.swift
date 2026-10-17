@@ -2,13 +2,16 @@ import XCTest
 import Core
 @testable import VoiceType
 
-/// Records the vocabulary of every call. After `holdNextTranscription()`, the
-/// next call stays suspended until `release()`.
+/// Records the vocabulary of every call and returns `text`. After
+/// `holdNextTranscription()`, the next call stays suspended until `release()`.
 final class FakeBackend: LocalSpeechBackend, @unchecked Sendable {
     private let lock = NSLock()
+    private let text: String
     private var received: [String?] = []
     private var holdsNext = false
     private var held: CheckedContinuation<Void, Never>?
+
+    init(text: String = "") { self.text = text }
 
     var vocabularies: [String?] { lock.withLock { received } }
     var isHeld: Bool { lock.withLock { held != nil } }
@@ -32,7 +35,7 @@ final class FakeBackend: LocalSpeechBackend, @unchecked Sendable {
         if holds {
             await withCheckedContinuation { continuation in lock.withLock { held = continuation } }
         }
-        return ""
+        return text
     }
 }
 
@@ -60,8 +63,8 @@ final class FakeLoader: LocalModelLoading {
     }
 
     @discardableResult
-    func succeed(_ id: String) throws -> FakeBackend {
-        let backend = FakeBackend()
+    func succeed(_ id: String, text: String = "") throws -> FakeBackend {
+        let backend = FakeBackend(text: text)
         try next(id).resume(returning: backend)
         return backend
     }

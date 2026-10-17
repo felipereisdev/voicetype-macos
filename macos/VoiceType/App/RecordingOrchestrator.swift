@@ -40,11 +40,18 @@ final class RecordingOrchestrator {
             transcribeFn = { try await local.transcribe(audio: $0, lang: $1, vocabulary: $2) }
         default: // "auto"
             let local = LocalTranscriber(manager: localModels)
-            transcribeFn = FallbackTranscribe.make(
-                primary: { try await local.transcribe(audio: $0, lang: $1, vocabulary: $2) },
-                fallback: groqFn,
-                isPrimaryReady: { true }
-            )
+            let localFn: Pipeline.TranscribeFn = { try await local.transcribe(audio: $0, lang: $1, vocabulary: $2) }
+            if apiKey.isEmpty {
+                // Without a key Groq can only answer 401, which would mask the
+                // local "not ready" behind a Groq error.
+                transcribeFn = localFn
+            } else {
+                transcribeFn = FallbackTranscribe.make(
+                    primary: localFn,
+                    fallback: groqFn,
+                    isPrimaryReady: { true }
+                )
+            }
         }
 
         // Refine/translate: local-first (FoundationModels) with Groq fallback,
