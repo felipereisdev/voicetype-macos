@@ -278,7 +278,7 @@ final class PendingApprovalsTests: XCTestCase {
         let copies = try preservedCopies(vault, holding: "editado fora\n")
         XCTAssertEqual(copies.count, 1)
         XCTAssertEqual(notices.map(\.title), ["Edição externa guardada à parte"])
-        XCTAssertEqual(notices.first?.body, "“Sprint review” foi gravada no MegaBrain, mas outro app editou \(gotchaPath) durante a gravação e o MegaBrain ficou com a versão do VoiceType. A edição foi guardada em \(copies.first ?? "").")
+        XCTAssertEqual(notices.first?.body, "“Sprint review” foi gravada no vault, mas outro app editou \(gotchaPath) durante a gravação e o vault ficou com a versão do VoiceType. A edição foi guardada em \(copies.first ?? "").")
     }
 
     func testBootstrapCompletesInterruptedCompletionAndReviewsConflicts() throws {
@@ -360,9 +360,9 @@ final class PendingApprovalsTests: XCTestCase {
             XCTAssertEqual(p.items.first?.baseContent, "atual\n")
             XCTAssertEqual(try state(c.dir).okRecordPath, paths.record)
             XCTAssertEqual(pending.items.map(\.id), [c.dir.lastPathComponent])
-            XCTAssertEqual(notices.map(\.title), ["Gravação no MegaBrain concluída em parte"])
+            XCTAssertEqual(notices.map(\.title), ["Gravação no vault concluída em parte"])
             XCTAssertEqual(notices.first?.body,
-                           "1 item de “Sprint review” mudou durante a gravação e voltou para revisão. O registro e a transcrição já estão no MegaBrain.")
+                           "1 item de “Sprint review” mudou durante a gravação e voltou para revisão. O registro e a transcrição já estão no vault.")
         }
 
         // 3. Record deleted during the completion and its restore failing →
@@ -396,7 +396,7 @@ final class PendingApprovalsTests: XCTestCase {
             XCTAssertTrue(MeetingProposalStore.hasJournal(c.dir))
             XCTAssertNil(try state(c.dir).okRecordPath)
             XCTAssertEqual(pending.items.map(\.id), [c.dir.lastPathComponent])
-            XCTAssertEqual(notices.map(\.title), ["Gravação no MegaBrain incompleta"])
+            XCTAssertEqual(notices.map(\.title), ["Gravação no vault incompleta"])
             XCTAssertEqual(notices.first?.body,
                            "Faltou gravar \(paths.record). O VoiceType tenta de novo no próximo início ou ao abrir a reunião.")
 

@@ -1,16 +1,28 @@
 import Foundation
 
 /// Where meeting notes and voice notes go: the Obsidian folder (unchanged
-/// behavior) or an OpenKnowledge project such as the MegaBrain.
+/// behavior) or an OpenKnowledge project.
 public enum MeetingVaultKind: String, Codable, Sendable, CaseIterable {
     case obsidian
     case openKnowledge = "openknowledge"
 }
 
 public enum OKVault {
-    /// The configured vault path with `~` expanded, as a directory URL.
+    /// Stands for "no vault configured". `/dev/null/.ok` can never exist, so
+    /// it never passes `isProjectRoot` (an empty path would otherwise resolve
+    /// to the process's working directory).
+    public static let unset = URL(fileURLWithPath: "/dev/null", isDirectory: true)
+
+    /// Whether a vault path was set at all (blank = not set).
+    public static func isConfigured(_ path: String) -> Bool {
+        !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// The configured vault path with `~` expanded, as a directory URL;
+    /// `unset` when the path is blank.
     public static func url(_ path: String) -> URL {
-        URL(fileURLWithPath: (path as NSString).expandingTildeInPath, isDirectory: true)
+        guard isConfigured(path) else { return unset }
+        return URL(fileURLWithPath: (path as NSString).expandingTildeInPath, isDirectory: true)
     }
 
     /// An OpenKnowledge project root holds a `.ok/` directory (a plain file

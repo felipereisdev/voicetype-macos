@@ -1,6 +1,6 @@
 import Foundation
 
-/// Kebab-case ASCII slugs, the MegaBrain naming convention for projects and
+/// Kebab-case ASCII slugs, the OpenKnowledge vault naming convention for projects and
 /// documents (`billing-api`, `2026-10-16-sprint-review`).
 public enum OKSlug {
     /// `^[a-z0-9]+(-[a-z0-9]+)*$`, at most 80 characters.

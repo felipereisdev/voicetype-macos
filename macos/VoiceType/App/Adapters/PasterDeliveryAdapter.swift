@@ -59,7 +59,9 @@ struct DailyNoteDeliveryAdapter: PasterDelivery {
                 }
             case .openKnowledge:
                 guard OKVault.isProjectRoot(vault) else {
-                    throw WriteFailed(detail: "Vault OpenKnowledge inválido: \(vault.path)")
+                    throw WriteFailed(detail: vault == OKVault.unset
+                        ? "Nenhum vault OpenKnowledge configurado em Ajustes → Reuniões."
+                        : "Vault OpenKnowledge inválido: \(vault.path)")
                 }
                 if let idea {
                     let note = try OKInbox.writeIdea(idea, to: vault)

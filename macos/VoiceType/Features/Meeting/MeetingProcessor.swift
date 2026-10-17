@@ -147,13 +147,13 @@ actor MeetingProcessor {
         case .meetingBusy:
             await notifier.error(
                 title: "Reprocessamento descartado",
-                body: "A reunião “\(title)” está sendo gravada no MegaBrain. Reprocesse de novo para gerar uma nova pendência."
+                body: "A reunião “\(title)” está sendo gravada no vault. Reprocesse de novo para gerar uma nova pendência."
             )
             return
         case .approvedMeanwhile:
             await notifier.error(
                 title: "Reprocessamento descartado",
-                body: "A reunião “\(title)” foi gravada no MegaBrain enquanto era reprocessada. Reprocesse de novo para gerar uma nova pendência."
+                body: "A reunião “\(title)” foi gravada no vault enquanto era reprocessada. Reprocesse de novo para gerar uma nova pendência."
             )
             return
         case .replaced:
@@ -161,7 +161,12 @@ actor MeetingProcessor {
         }
         await onPendingChanged()
         if !OKVault.isProjectRoot(vault) {
-            await notifier.error(title: "Vault OpenKnowledge inválido", body: vault.path)
+            await notifier.error(
+                title: "Vault OpenKnowledge inválido",
+                body: OKVault.isConfigured(cfg.openKnowledgeVaultPath)
+                    ? vault.path
+                    : "Nenhum vault configurado em Ajustes → Reuniões."
+            )
         }
         if let failure {
             await notifier.error(title: "Reunião sem resumo", body: failure)

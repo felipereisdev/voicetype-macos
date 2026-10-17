@@ -146,7 +146,7 @@ struct OKVaultCatalogTests {
         } throws: { ($0 as? CocoaError)?.code == .fileReadNoSuchFile }
     }
 
-    /// Exact text of `/Users/freis/MegaBrain/.ok/templates/decisao.md`.
+    /// Exact text of a real OpenKnowledge `.ok/templates/decisao.md`.
     private static let decisaoTemplate = """
     ---
     template:

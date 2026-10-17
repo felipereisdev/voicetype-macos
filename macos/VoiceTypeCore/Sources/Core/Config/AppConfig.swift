@@ -121,7 +121,7 @@ public struct AppConfig: Codable, Equatable, Sendable {
     /// Where meetings and voice notes go: Obsidian (`meetingNotesFolder`) or
     /// the OpenKnowledge project at `openKnowledgeVaultPath`.
     public var meetingVaultKind: MeetingVaultKind
-    /// Root of the OpenKnowledge project (the folder holding `.ok/`; `~` expanded at use).
+    /// Root of the OpenKnowledge project (the folder holding `.ok/`; `~` expanded at use; empty = not set).
     public var openKnowledgeVaultPath: String
 
     public init(
@@ -158,7 +158,7 @@ public struct AppConfig: Codable, Equatable, Sendable {
         meetingAudioRetentionDays: Int = 7,
         voiceNoteShortcut: String = "Alt+N",
         meetingVaultKind: MeetingVaultKind = .obsidian,
-        openKnowledgeVaultPath: String = "~/MegaBrain"
+        openKnowledgeVaultPath: String = ""
     ) {
         self.schemaVersion = schemaVersion
         self.groq = groq
