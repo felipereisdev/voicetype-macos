@@ -144,6 +144,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         // Close the meeting segments so the CAF headers + manifest are final.
         deps?.meetingRecorder.stop()
+        deps?.localModels.endSession()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

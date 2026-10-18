@@ -174,6 +174,52 @@ struct LocalModelSelectionTests {
         #expect(sel.status(of: small) == .failed("boom"))
     }
 
+    // QA F15/K8: Core ML crashes the app (it does not throw) on damaged
+    // weights. A model whose load was under way when the app died is never
+    // loaded again on its own at boot, or the app would crash on every launch.
+    @Test func bootSkipsCrashedSelectedAndLoadsDefault() {
+        var sel = LocalModelSelection(modelIDs: ids, downloaded: [small, turbo])
+        sel.recordCrash(turbo, message: "caiu")
+        let effects = sel.boot(selectedID: turbo)
+        let d = attempt(in: effects)!
+        #expect(d.modelID == small)
+        #expect(effects == [.load(d), .persistSelection(small)])
+        #expect(sel.status(of: turbo) == .failed("caiu"))
+        #expect(sel.hasFiles(turbo))
+    }
+
+    @Test func bootOfCrashedDefaultLoadsNothing() {
+        var sel = LocalModelSelection(modelIDs: ids, downloaded: [small])
+        sel.recordCrash(small, message: "caiu")
+        #expect(sel.boot(selectedID: small) == [])
+        #expect(sel.pending == nil)
+        #expect(sel.active == nil)
+        #expect(sel.status(of: small) == .failed("caiu"))
+
+        var both = LocalModelSelection(modelIDs: ids, downloaded: [small, turbo])
+        both.recordCrash(small, message: "caiu")
+        both.recordCrash(turbo, message: "caiu")
+        #expect(both.boot(selectedID: turbo) == [.persistSelection(small)])
+        #expect(both.pending == nil)
+    }
+
+    @Test func crashedModelLoadsWhenPickedAgain() {
+        var sel = LocalModelSelection(modelIDs: ids, downloaded: [small, turbo])
+        sel.recordCrash(turbo, message: "caiu")
+        _ = sel.loadSucceeded(attempt(in: sel.boot(selectedID: turbo))!)
+        let t = attempt(in: sel.select(turbo))!
+        #expect(sel.status(of: turbo) == .preparing)
+        #expect(sel.loadSucceeded(t) == [.unload(small)])
+        #expect(sel.status(of: turbo) == .ready)
+    }
+
+    @Test func recordCrashIgnoresUnknownID() {
+        var sel = LocalModelSelection(modelIDs: ids, downloaded: [small])
+        sel.recordCrash("nope", message: "caiu")
+        #expect(sel.status(of: "nope") == .notDownloaded)
+        #expect(attempt(in: sel.boot(selectedID: small))?.modelID == small)
+    }
+
     @Test func failureOfIncompleteDownloadDeletesPartials() {
         var sel = LocalModelSelection(modelIDs: ids, downloaded: [])
         let d = attempt(in: sel.boot(selectedID: small))!

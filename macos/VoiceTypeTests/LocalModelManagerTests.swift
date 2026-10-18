@@ -45,6 +45,7 @@ final class FakeBackend: LocalSpeechBackend, @unchecked Sendable {
 @MainActor
 final class FakeLoader: LocalModelLoading {
     var downloaded: Set<String> = []
+    var crashed: Set<String> = []
     private(set) var log: [String] = []
     private var pending: [String: [CheckedContinuation<any LocalSpeechBackend, Error>]] = [:]
 
@@ -61,6 +62,10 @@ final class FakeLoader: LocalModelLoading {
     func deleteFiles(_ model: LocalModel) {
         log.append("delete:\(model.id)")
     }
+
+    func crashedModels(_ models: [LocalModel]) -> Set<String> { crashed }
+
+    func endSession() { log.append("endSession") }
 
     @discardableResult
     func succeed(_ id: String, text: String = "") throws -> FakeBackend {
@@ -316,6 +321,43 @@ final class LocalModelManagerTests: XCTestCase {
         XCTAssertNil(manager.selection.pending)
         XCTAssertTrue(manager.selection.hasFiles(smallID))
         XCTAssertTrue(manager.selection.hasFiles(turboID))
+    }
+
+    // QA F15/K8: the app died loading the Turbo, and the config still picks it.
+    // The launch loads the Small instead and the Turbo row shows why.
+    func test_boot_after_crash_loads_default_and_shows_failure() async throws {
+        loader.downloaded = [smallID, turboID]
+        loader.crashed = [turboID]
+        let manager = makeManager()
+        manager.bootstrap(selectedID: turboID)
+        await settle()
+
+        XCTAssertEqual(loader.log, ["load:\(smallID)"])
+        XCTAssertEqual(persisted, [smallID])
+        try loader.succeed(smallID)
+        await settle()
+        XCTAssertEqual(manager.activeModel?.id, smallID)
+        XCTAssertEqual(manager.selection.status(of: turboID), .failed(SettingsStrings.localModelCrashed))
+        XCTAssertTrue(manager.selection.hasFiles(turboID))
+    }
+
+    func test_damaged_files_failure_keeps_previous_and_shows_reason() async throws {
+        loader.downloaded = [turboID]
+        let (manager, small) = try await readyWithSmall()
+        manager.select(turboID)
+        await settle()
+        try loader.fail(turboID, LocalModelLoadError.damagedFiles)
+        await settle()
+
+        XCTAssertEqual(manager.selection.status(of: turboID), .failed(SettingsStrings.localModelDamaged))
+        XCTAssertEqual(persisted, [turboID, smallID])
+        XCTAssertTrue(manager.transcriptionTarget()?.backend === small)
+        XCTAssertFalse(loader.log.contains { $0.hasPrefix("delete:") })
+    }
+
+    func test_endSession_reaches_loader() {
+        makeManager().endSession()
+        XCTAssertEqual(loader.log, ["endSession"])
     }
 
     func test_boot_cancel_with_default_deleted_loads_default() async throws {

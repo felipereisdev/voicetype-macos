@@ -13,6 +13,14 @@ enum LocalModelLoadProgress: Sendable {
     case preparing
 }
 
+enum LocalModelLoadError: LocalizedError {
+    /// Files on disk do not match their recorded hashes; they were removed, and
+    /// picking the model again downloads them.
+    case damagedFiles
+
+    var errorDescription: String? { SettingsStrings.localModelDamaged }
+}
+
 /// Downloads, loads and deletes the catalog's models. Never called with a
 /// load and a delete of the same id at once: `LocalModelManager` serializes them.
 @MainActor
@@ -22,6 +30,11 @@ protocol LocalModelLoading {
         _ model: LocalModel, progress: @escaping @Sendable (LocalModelLoadProgress) -> Void
     ) async throws -> any LocalSpeechBackend
     func deleteFiles(_ model: LocalModel)
+    /// Models whose load was under way when the app last died (Core ML crashes
+    /// on damaged weights instead of throwing) and that have not loaded since.
+    func crashedModels(_ models: [LocalModel]) -> Set<String>
+    /// The app quits normally: a load under way now is not a crash.
+    func endSession()
 }
 
 /// Every model lives under `modelsDirectory`:
@@ -30,6 +43,8 @@ protocol LocalModelLoading {
 ///   `models/argmaxinc/whisperkit-coreml/.cache/huggingface/download/<id>`.
 ///   Tokenizers (`models/openai/…`) are shared and never deleted.
 /// - Parakeet: `parakeet-ultra/`, partials (`*.partial`) included.
+/// - `.voicetype-loading-<id>` while Core ML loads a model, and
+///   `.voicetype-crashed-<id>` when the app died during that load.
 @MainActor
 struct LiveLocalModelLoader: LocalModelLoading {
     private static let logger = Logger(subsystem: "dev.voicetype.app", category: "LiveLocalModelLoader")
@@ -82,6 +97,14 @@ struct LiveLocalModelLoader: LocalModelLoading {
         modelsDirectory.appendingPathComponent("parakeet-ultra", isDirectory: true)
     }
 
+    private func loadingSentinel(_ id: String) -> URL {
+        modelsDirectory.appendingPathComponent(".voicetype-loading-\(id)")
+    }
+
+    private func crashRecord(_ id: String) -> URL {
+        modelsDirectory.appendingPathComponent(".voicetype-crashed-\(id)")
+    }
+
     func isDownloaded(_ model: LocalModel) -> Bool {
         switch model.engine {
         case .whisperKit:
@@ -109,9 +132,10 @@ struct LiveLocalModelLoader: LocalModelLoading {
         switch model.engine {
         case .whisperKit:
             if let folder = completeBundle(model) {
+                try await checkIntegrity(of: folder)
                 // Offline or with the repository down, the files on disk still load.
                 do {
-                    return try await loadWhisper(folder, modelsDirectory)
+                    return try await guardedLoad(model) { try await loadWhisper(folder, modelsDirectory) }
                 } catch {
                     try Task.checkCancellation()
                     // Fall through: the download fetches whatever file is missing.
@@ -124,8 +148,10 @@ struct LiveLocalModelLoader: LocalModelLoading {
             // Cancelled midway, the downloader returns without throwing
             // (`HubApi.snapshot`), so only an attempt still running has every file.
             try Task.checkCancellation()
+            // The downloader returns the files it already had without reading them.
+            try await checkIntegrity(of: folder)
             FileManager.default.createFile(atPath: folder.appendingPathComponent(Self.completeMarker).path, contents: nil)
-            return try await loadWhisper(folder, modelsDirectory)
+            return try await guardedLoad(model) { try await loadWhisper(folder, modelsDirectory) }
         case .parakeet:
             let folder = parakeetFolder
             try await AsrModels.download(to: folder, version: .ultra) { update in
@@ -136,11 +162,67 @@ struct LiveLocalModelLoader: LocalModelLoading {
             }
             try Task.checkCancellation()
             progress(.preparing)
-            let models = try await AsrModels.load(from: folder, version: .ultra)
-            try Task.checkCancellation()
-            let manager = AsrManager()
-            try await manager.loadModels(models)
-            return ParakeetBackend(manager: manager)
+            return try await guardedLoad(model) {
+                let models = try await AsrModels.load(from: folder, version: .ultra)
+                try Task.checkCancellation()
+                let manager = AsrManager()
+                try await manager.loadModels(models)
+                return ParakeetBackend(manager: manager)
+            }
+        }
+    }
+
+    /// Throws `damagedFiles`, before Core ML ever sees them, when a file does not
+    /// match its recorded hash. The damaged files and the marker are removed,
+    /// so the next download fetches just those.
+    private func checkIntegrity(of folder: URL) async throws {
+        let records = whisperPartials(folder.lastPathComponent)
+        let damaged = await WhisperBundleIntegrity.damagedFiles(
+            in: folder, metadataFolder: records, ignoring: [Self.completeMarker]
+        )
+        try Task.checkCancellation()
+        guard !damaged.isEmpty else { return }
+        Self.logger.error("Damaged files in \(folder.lastPathComponent, privacy: .public): \(damaged.joined(separator: ", "), privacy: .public)")
+        let fm = FileManager.default
+        try? fm.removeItem(at: folder.appendingPathComponent(Self.completeMarker))
+        for path in damaged {
+            try? fm.removeItem(at: folder.appendingPathComponent(path))
+            try? fm.removeItem(at: records.appendingPathComponent(path + ".metadata"))
+        }
+        throw LocalModelLoadError.damagedFiles
+    }
+
+    /// Runs a Core ML load with a sentinel on disk, so that if the app dies in
+    /// it the next launch knows (`crashedModels`) and does not load it again.
+    private func guardedLoad(
+        _ model: LocalModel, _ body: () async throws -> any LocalSpeechBackend
+    ) async throws -> any LocalSpeechBackend {
+        let fm = FileManager.default
+        let sentinel = loadingSentinel(model.id)
+        fm.createFile(atPath: sentinel.path, contents: nil)
+        defer { try? fm.removeItem(at: sentinel) }
+        let backend = try await body()
+        try? fm.removeItem(at: crashRecord(model.id))
+        return backend
+    }
+
+    func crashedModels(_ models: [LocalModel]) -> Set<String> {
+        let fm = FileManager.default
+        var crashed: Set<String> = []
+        for model in models {
+            let sentinel = loadingSentinel(model.id), record = crashRecord(model.id)
+            if fm.fileExists(atPath: sentinel.path) {
+                try? fm.removeItem(at: record)
+                try? fm.moveItem(at: sentinel, to: record)
+            }
+            if fm.fileExists(atPath: record.path) { crashed.insert(model.id) }
+        }
+        return crashed
+    }
+
+    func endSession() {
+        for model in LocalModelCatalog.all {
+            try? FileManager.default.removeItem(at: loadingSentinel(model.id))
         }
     }
 
@@ -150,7 +232,7 @@ struct LiveLocalModelLoader: LocalModelLoading {
         case .whisperKit: targets = [whisperFolder(model.id), whisperPartials(model.id)]
         case .parakeet: targets = [parakeetFolder]
         }
-        for url in targets {
+        for url in targets + [crashRecord(model.id)] {
             try? FileManager.default.removeItem(at: url)
         }
     }

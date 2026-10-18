@@ -30,6 +30,9 @@ public struct LocalModelSelection: Equatable, Sendable {
     private var downloaded: Set<String>
     private var progress: [String: LocalModelStatus] = [:]
     private var failures: [String: String] = [:]
+    // Models whose load was under way when the app last died; boot never
+    // loads them on its own.
+    private var crashed: Set<String> = []
     // Whether the pending model's files were complete before its attempt started;
     // a cancelled download only deletes what it fetched itself.
     private var pendingWasDownloaded = false
@@ -50,13 +53,24 @@ public struct LocalModelSelection: Equatable, Sendable {
     /// Whether the model's complete files are on disk, failed or not.
     public func hasFiles(_ id: String) -> Bool { downloaded.contains(id) }
 
+    /// The app died while `id` was loading: Core ML crashes on damaged weights
+    /// instead of throwing. Call before `boot`; the row shows `message`.
+    public mutating func recordCrash(_ id: String, message: String) {
+        guard modelIDs.contains(id) else { return }
+        crashed.insert(id)
+        failures[id] = message
+    }
+
     public mutating func boot(selectedID: String) -> [LocalModelEffect] {
         guard active == nil, pendingAttempt == nil else { return [] }
-        guard modelIDs.contains(selectedID) else {
-            let defaultID = LocalModelCatalog.defaultID
-            return [.load(startLoad(defaultID)), .persistSelection(defaultID)]
-        }
-        return [.load(startLoad(selectedID))]
+        let defaultID = LocalModelCatalog.defaultID
+        // A model that crashed the app is only loaded again when picked, or
+        // every launch would crash; the default takes its place.
+        let candidates = modelIDs.contains(selectedID) ? [selectedID, defaultID] : [defaultID]
+        let target = candidates.first { !crashed.contains($0) }
+        let persist: [LocalModelEffect] = (target ?? defaultID) == selectedID ? [] : [.persistSelection(defaultID)]
+        guard let target else { return persist }
+        return [.load(startLoad(target))] + persist
     }
 
     public mutating func select(_ id: String) -> [LocalModelEffect] {

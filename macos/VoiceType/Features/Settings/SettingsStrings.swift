@@ -195,6 +195,8 @@ enum SettingsStrings {
     static func localModelFailed(_ msg: String) -> String { "Falhou: \(msg)" }
     static let localModelCancel = "Cancelar"
     static let localModelDelete = "Apagar"
+    static let localModelDamaged = "arquivos corrompidos, escolha o modelo de novo para baixá-los"
+    static let localModelCrashed = "o app fechou ao preparar este modelo; escolha de novo ou apague"
     static let localModelFirstLoadNote = "Depois do download, a primeira preparação do modelo pode levar 1–2 min. O modelo anterior continua funcionando até lá."
     static func localModelVocabularyIgnored(_ count: Int) -> String { "Seu vocabulário (\(count) termos) é ignorado com este modelo." }
     static let localTranscriptionRefineNote = "Este seletor controla apenas a transcrição (áudio → texto). O refino e a tradução ainda usam o Groq (precisam de internet). Sem conexão, o texto transcrito é colado sem refino, em vez de se perder."

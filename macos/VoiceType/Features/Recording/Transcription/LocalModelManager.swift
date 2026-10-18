@@ -51,7 +51,16 @@ final class LocalModelManager {
     /// backend together.
     func transcriptionTarget() -> LocalTranscriptionTarget? { activeTarget }
 
-    func bootstrap(selectedID: String) { run(selection.boot(selectedID: selectedID)) }
+    func bootstrap(selectedID: String) {
+        for id in loader.crashedModels(models) {
+            Self.logger.error("The app died loading \(id, privacy: .public); not loading it at launch")
+            selection.recordCrash(id, message: SettingsStrings.localModelCrashed)
+        }
+        run(selection.boot(selectedID: selectedID))
+    }
+
+    /// The app quits normally: a load under way is not a crash.
+    func endSession() { loader.endSession() }
     func select(_ id: String) { run(selection.select(id)) }
     func cancel() { run(selection.cancel()) }
     func delete(_ id: String) { run(selection.delete(id)) }
