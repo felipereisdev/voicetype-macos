@@ -645,3 +645,15 @@ substituições, similaridade ≥0.5) descarta tudo.
 **Fix:** `PromptSafeWhisperKit` (criado pelo `WhisperKitLoader.loadKit`) sobrescreve `setupTranscribeTask` e passa um `PromptSafeTextDecoder`, que delega tudo ao decoder do WhisperKit. Quando o prompt começa com `<|startofprev|>`, ele decodifica com um `ForcedPrefixSampler`, que nas posições forçadas zera o `completed` e o log-prob (este último por causa do `firstTokenLogProbThreshold`). `decodeText`/`predictLogits` são `public`, e não `open`, por isso o desvio fica no sampler. Validado no harness: Turbo + vocabulário dá texto nas 10 frases e nas 2 falas livres, e o vocabulário ajuda ("issue", "cache", "Swift Testing"). O Small sai idêntico com e sem o desvio. O Turbo passou a `supportsVocabulary: true`. Ao subir o WhisperKit, conferir se o laço já ignora EOT no prefill e, se ignorar, remover o desvio.
 
 **Referência:** `PromptSafeTextDecoder`, `ForcedPrefixSampler` em `WhisperKitBackend.swift`; `LocalModelCatalog`.
+
+## G-037 — Download do Whisper cancelado continua gravando depois de voltar
+
+**Sintoma:** cancelar o download do Turbo já adiantado (~50%) deixava a pasta parcial no disco, às vezes com um arquivo a mais que antes do clique, e a pasta reaparecia depois de apagada.
+
+**Reprodução:** WhisperKit 1.0.0, `WhisperKit.download` do Turbo 632 MB, cancelar a tarefa no meio de um arquivo grande e apagar a pasta e o cache assim que a tarefa termina.
+
+**Causa:** o `Downloader` do HubApi (`ArgmaxCore/External/Hub/Downloader.swift`, `setUpDownload`) baixa numa `Task` própria, que ninguém espera. No cancelamento, `cancel()` transmite `.failed(URLError(.cancelled))` na hora e o `HubFileDownloader.download` (ou o `snapshot`, entre arquivos) volta, mas essa `Task` ainda grava o `.incomplete` e pode chamar `moveDownloadedFile`, que recria as pastas intermediárias (`createDirectory(withIntermediateDirectories: true)`). O FluidAudio (Parakeet) baixa num `withThrowingTaskGroup` e não tem o problema.
+
+**Fix:** `LiveLocalModelLoader.waitForWritesToStop`: uma carga do Whisper cancelada só termina depois de 0,5 s sem mudança (tamanho e data) nos arquivos da pasta e do cache do modelo, limitado a 10 s. A remoção do Cancelar espera a carga na `fileQueue` do `LocalModelManager`, então vem depois da última escrita.
+
+**Referência:** `LiveLocalModelLoader.load`/`waitForWritesToStop` em `LocalSpeechBackend.swift`; `test_cancel_at_launch_of_resumed_download_removes_the_partials_written_after_it`.
