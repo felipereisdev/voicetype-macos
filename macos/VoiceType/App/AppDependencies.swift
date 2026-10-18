@@ -66,9 +66,13 @@ final class AppDependencies {
             Task { await configSnapshot.update { $0.localTranscriptionModel = id } }
         })
         self.localModels = resolvedLocalModels
-        Task {
-            let selectedID = (try? await configStore.load())?.localTranscriptionModel ?? LocalModelCatalog.defaultID
-            resolvedLocalModels.bootstrap(selectedID: selectedID)
+        // The app is also the unit-test host: there, loading the user's model
+        // would read, repair or download the real files in Application Support.
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
+            Task {
+                let selectedID = (try? await configStore.load())?.localTranscriptionModel ?? LocalModelCatalog.defaultID
+                resolvedLocalModels.bootstrap(selectedID: selectedID)
+            }
         }
 
         self.recordingOrchestrator = RecordingOrchestrator(
