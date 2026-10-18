@@ -115,8 +115,15 @@
 		A00F000000000000000000A5 /* HistoryRecorderAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00F000000000000000000A5 /* HistoryRecorderAdapter.swift */; };
 		A00F000000000000000000A7 /* RecordingOrchestrator+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00F000000000000000000A7 /* RecordingOrchestrator+Helpers.swift */; };
 		DE3214E92FE415BF000EA50B /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = DE3214E82FE415BF000EA50B /* WhisperKit */; };
-		A010000000000000000000A1 /* WhisperModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B010000000000000000000A1 /* WhisperModelManager.swift */; };
+		A010000000000000000000A1 /* WhisperKitLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B010000000000000000000A1 /* WhisperKitLoader.swift */; };
 		A010000000000000000000A2 /* LocalTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = B010000000000000000000A2 /* LocalTranscriber.swift */; };
+		A03000000000000000000001 /* LocalSpeechBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = B03000000000000000000001 /* LocalSpeechBackend.swift */; };
+		A03000000000000000000007 /* WhisperBundleIntegrity.swift in Sources */ = {isa = PBXBuildFile; fileRef = B03000000000000000000007 /* WhisperBundleIntegrity.swift */; };
+		A03000000000000000000002 /* WhisperKitBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = B03000000000000000000002 /* WhisperKitBackend.swift */; };
+		A03000000000000000000003 /* ParakeetBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = B03000000000000000000003 /* ParakeetBackend.swift */; };
+		A03000000000000000000004 /* LiveLocalModelLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B03000000000000000000004 /* LiveLocalModelLoaderTests.swift */; };
+		A03000000000000000000005 /* LocalModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B03000000000000000000005 /* LocalModelManager.swift */; };
+		A03000000000000000000006 /* LocalModelManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B03000000000000000000006 /* LocalModelManagerTests.swift */; };
 		A010000000000000000000A3 /* AIAvailability.swift in Sources */ = {isa = PBXBuildFile; fileRef = B010000000000000000000A3 /* AIAvailability.swift */; };
 		A010000000000000000000A4 /* LocalRefiner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B010000000000000000000A4 /* LocalRefiner.swift */; };
 		A00500000000000000004101 /* CursorContextReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00500000000000000004101 /* CursorContextReader.swift */; };
@@ -261,8 +268,15 @@
 		B00F000000000000000000A4 /* PipelineRunnerAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineRunnerAdapter.swift; sourceTree = "<group>"; };
 		B00F000000000000000000A5 /* HistoryRecorderAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryRecorderAdapter.swift; sourceTree = "<group>"; };
 		B00F000000000000000000A7 /* RecordingOrchestrator+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RecordingOrchestrator+Helpers.swift"; sourceTree = "<group>"; };
-		B010000000000000000000A1 /* WhisperModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperModelManager.swift; sourceTree = "<group>"; };
+		B010000000000000000000A1 /* WhisperKitLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperKitLoader.swift; sourceTree = "<group>"; };
 		B010000000000000000000A2 /* LocalTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalTranscriber.swift; sourceTree = "<group>"; };
+		B03000000000000000000001 /* LocalSpeechBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalSpeechBackend.swift; sourceTree = "<group>"; };
+		B03000000000000000000007 /* WhisperBundleIntegrity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperBundleIntegrity.swift; sourceTree = "<group>"; };
+		B03000000000000000000002 /* WhisperKitBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperKitBackend.swift; sourceTree = "<group>"; };
+		B03000000000000000000003 /* ParakeetBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParakeetBackend.swift; sourceTree = "<group>"; };
+		B03000000000000000000004 /* LiveLocalModelLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveLocalModelLoaderTests.swift; sourceTree = "<group>"; };
+		B03000000000000000000005 /* LocalModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalModelManager.swift; sourceTree = "<group>"; };
+		B03000000000000000000006 /* LocalModelManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalModelManagerTests.swift; sourceTree = "<group>"; };
 		B010000000000000000000A3 /* AIAvailability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAvailability.swift; sourceTree = "<group>"; };
 		B010000000000000000000A4 /* LocalRefiner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalRefiner.swift; sourceTree = "<group>"; };
 		B00500000000000000004101 /* CursorContextReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorContextReader.swift; sourceTree = "<group>"; };
@@ -379,6 +393,8 @@
 				B003000000000000000000B2 /* ShortcutManagerTests.swift */,
 				B003000000000000000000B3 /* RecordingOrchestratorSmokeTests.swift */,
 				B004000000000000000000B1 /* PasterTests.swift */,
+				B03000000000000000000004 /* LiveLocalModelLoaderTests.swift */,
+				B03000000000000000000006 /* LocalModelManagerTests.swift */,
 				B007000000000000000000B7 /* HistoryViewModelTests.swift */,
 				H002000000000000000000B1 /* Audio */,
 				H00500000000000000000001 /* Settings */,
@@ -678,8 +694,13 @@
 		H010000000000000000000H6 /* Transcription */ = {
 			isa = PBXGroup;
 			children = (
-				B010000000000000000000A1 /* WhisperModelManager.swift */,
+				B010000000000000000000A1 /* WhisperKitLoader.swift */,
 				B010000000000000000000A2 /* LocalTranscriber.swift */,
+				B03000000000000000000001 /* LocalSpeechBackend.swift */,
+				B03000000000000000000007 /* WhisperBundleIntegrity.swift */,
+				B03000000000000000000002 /* WhisperKitBackend.swift */,
+				B03000000000000000000003 /* ParakeetBackend.swift */,
+				B03000000000000000000005 /* LocalModelManager.swift */,
 			);
 			path = Transcription;
 			sourceTree = "<group>";
@@ -925,8 +946,13 @@
 				A00F000000000000000000A4 /* PipelineRunnerAdapter.swift in Sources */,
 				A00F000000000000000000A5 /* HistoryRecorderAdapter.swift in Sources */,
 				A00F000000000000000000A7 /* RecordingOrchestrator+Helpers.swift in Sources */,
-				A010000000000000000000A1 /* WhisperModelManager.swift in Sources */,
+				A010000000000000000000A1 /* WhisperKitLoader.swift in Sources */,
 				A010000000000000000000A2 /* LocalTranscriber.swift in Sources */,
+				A03000000000000000000001 /* LocalSpeechBackend.swift in Sources */,
+				A03000000000000000000007 /* WhisperBundleIntegrity.swift in Sources */,
+				A03000000000000000000002 /* WhisperKitBackend.swift in Sources */,
+				A03000000000000000000003 /* ParakeetBackend.swift in Sources */,
+				A03000000000000000000005 /* LocalModelManager.swift in Sources */,
 				A010000000000000000000A3 /* AIAvailability.swift in Sources */,
 				A010000000000000000000A4 /* LocalRefiner.swift in Sources */,
 				A00500000000000000004101 /* CursorContextReader.swift in Sources */,
@@ -957,6 +983,8 @@
 				A00D000000000000000000B1 /* ConfigStoreSnapshotTests.swift in Sources */,
 				A00E000000000000000000B1 /* HistoryStoreSnapshotTests.swift in Sources */,
 				A004000000000000000000B1 /* PasterTests.swift in Sources */,
+				A03000000000000000000004 /* LiveLocalModelLoaderTests.swift in Sources */,
+				A03000000000000000000006 /* LocalModelManagerTests.swift in Sources */,
 				A00500000000000000000036 /* SettingsTestSupport.swift in Sources */,
 				A00500000000000000000038 /* GeneralSectionViewModelTests.swift in Sources */,
 				A00500000000000000000042 /* AudioSectionViewModelTests.swift in Sources */,

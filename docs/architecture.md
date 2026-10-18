@@ -21,6 +21,7 @@ macos/
 │   │   │   ├── Audio/             AudioRecorder, WavEncoder, AudioDeviceResolver
 │   │   │   ├── Output/            Paster (NSPasteboard + synthesized Cmd+V), FocusedApp
 │   │   │   ├── Shortcut/          HoldDetector (CGEventTap) + ShortcutManager
+│   │   │   ├── Transcription/     LocalModelManager, LocalTranscriber, backends WhisperKit e Parakeet
 │   │   │   └── HUD/               HUDController + SwiftUI HUDView + waveform
 │   │   ├── Settings/              7 SwiftUI sections + ShortcutRecorderField
 │   │   ├── History/               SwiftUI Window scene + ViewModel + AppIconResolver
@@ -38,6 +39,7 @@ macos/
 │       ├── Config/                ConfigStore (actor) + AppConfig (Codable)
 │       ├── History/               HistoryStore (actor)
 │       ├── Pipeline/              Transcriber, Refiner, Translator, Pipeline (actor)
+│       ├── LocalModels/           LocalModelCatalog + LocalModelSelection (troca de modelo local)
 │       ├── GroqClient/            GroqClient + retry + multipart builder
 │       └── Support/               Cancellable, Logger
 ├── build/                         entitlements.plist
@@ -144,6 +146,52 @@ public actor Pipeline {
 ```
 
 Cada step tem seu `URLSession` com timeouts (connect 5 s, resource 60 s). Retries exponenciais, max 2, respeitam `Task.checkCancellation()` entre tentativas.
+
+## Transcrição local
+
+Ajustes → Transcrição local escolhe o modelo on-device do ditado. A reunião não usa esta escolha: o `MeetingProcessor` carrega o próprio Whisper grande, de vida curta, via `WhisperKitLoader.loadKit`.
+
+**Catálogo** (`LocalModelCatalog`, Core). Lista fixa; o ID é também o nome da pasta do modelo.
+
+| ID | Nome | Motor | Vocabulário | macOS |
+|---|---|---|---|---|
+| `openai_whisper-small` (padrão) | Whisper Small, 216 MB | WhisperKit | sim | 14+ |
+| `openai_whisper-large-v3-v20240930_turbo_632MB` | Whisper Large v3 Turbo, 632 MB | WhisperKit | sim, via `PromptSafeTextDecoder` (G-036) | 14+ |
+| `parakeet-ultra` | Parakeet Ultra, 630 MB | FluidAudio | não | 15+ (BNNS quebra no 14, ver `MeetingDiarizer`) |
+
+A escolha fica em `AppConfig.localTranscriptionModel` (default `openai_whisper-small`, `decodeIfPresent`, sem bump do `schemaVersion`).
+
+**Máquina de estados** (`LocalModelSelection`, Core, pura). Guarda o modelo `active` (o que transcreve) e a `pendingAttempt` (o que está carregando), e devolve efeitos (`load`, `cancelLoad`, `unload`, `deleteFiles`, `persistSelection`) a cada evento: `boot`, `select`, `cancel`, `delete`, `progress`, `loadSucceeded`, `loadFailed`. Regras:
+
+- O modelo ativo continua transcrevendo até o pendente ficar pronto. Gravar durante um download usa o modelo antigo.
+- Cada carga é uma `LoadAttempt` (id + geração única). Progresso, sucesso e falha de uma tentativa que não é mais a pendente são ignorados, mesmo que o mesmo modelo tenha sido escolhido de novo.
+- Falha ou cancelamento volta para o ativo anterior. No boot, sem ativo, volta para o Small e carrega o Small (baixando, se foi apagado); se a tentativa que falhou já era o Small, para.
+- Cancelar um download apaga só o que ele baixou; um modelo que já estava completo antes da tentativa fica. Completo é o que o `isDownloaded` do loader diz: no Whisper, a pasta com `.voicetype-complete`. Uma pasta sem marcador (download interrompido, retomado no boot) aparece "Não baixado" e o Cancelar apaga a pasta e o cache dela.
+- Falhar também só apaga um download incompleto. Arquivos completos ficam (sem rede ou com o Hugging Face fora, a falha não prova que estão corrompidos): a linha mostra a falha com o botão Apagar, e uma nova tentativa carrega de novo o que está no disco.
+- O modelo ativo e o pendente nunca são apagáveis.
+
+**Manager** (`LocalModelManager`, app, `@Observable @MainActor`, criado no `AppDependencies`). Executa os efeitos através de um `LocalModelLoading` injetável (`LiveLocalModelLoader` em produção, fake nos testes). Serializa carga e remoção por id de modelo (`fileQueue`): `deleteFiles` e uma nova carga do mesmo id esperam a operação anterior terminar de fato, inclusive a compilação Core ML, que ignora cancelamento. `transcriptionTarget()` devolve modelo e backend juntos, numa leitura só.
+
+**Backends** (`LocalSpeechBackend`):
+
+- `WhisperKitBackend`: `WhisperKit` carregado pelo `WhisperKitLoader.loadKit` (download → compile → prewarm, com `checkCancellation` entre as fases). Depois que um `WhisperKit.download` termina sem ter sido cancelado, o loader grava `.voicetype-complete` na pasta do modelo (cancelado no meio, o `HubApi.snapshot` retorna a pasta sem lançar erro, então o loader confere o cancelamento antes de gravar). Cancelado, o download pode voltar com uma tarefa do `Downloader` do HubApi ainda gravando, e nada no SDK permite esperar por ela (G-037). Por isso cada tentativa baixa numa pasta própria, `.voicetype-downloads/<id>/<launch>-<uuid>/` (o `downloadBase` do HubApi, com o mesmo layout dentro), e só um download que não foi cancelado é movido para o lugar: primeiro os registros, por último a pasta com o marcador. Uma tentativa cancelada só escreve na própria pasta, que ninguém lê, e nunca cria nem apaga arquivo da seguinte. A pasta nova começa com o download que uma abertura anterior deixou (o processo dela morreu, então retomar é seguro) ou, se não houver, com clones APFS dos arquivos que já estão no lugar, para baixar só o que falta. As pastas desta abertura que sobraram de tentativas canceladas nunca são retomadas e saem na próxima tentativa ou no Apagar do modelo. Com esse marcador, carrega direto do disco (o `WhisperKit.download` sempre pede a lista de arquivos ao repositório) e só cai no download se a carga local falhar. Sem o marcador, passa sempre pelo download, que completa o que faltar: as pastas `.mlmodelc` sozinhas não provam nada, porque um download interrompido as deixa sem os pesos e o Core ML derruba o app (sinal 11) ao carregar isso. Um cache de antes do marcador precisa de rede uma vez para ganhá-lo. Antes de toda carga no Core ML (com ou sem marcador), o `WhisperBundleIntegrity` confere cada arquivo contra o etag gravado pelo downloader em `.cache/huggingface/download/<id>/<arquivo>.metadata` (SHA-256 nos arquivos LFS, SHA-1 de git blob nos outros; ~0,3 s para 632 MB). Confere também a presença: um arquivo é esperado se está no disco, se tem registro (o registro sobrevive ao arquivo apagado) ou se está no inventário do marcador (o marcador lista, uma linha por arquivo, o bundle que passou na conferência; um marcador vazio, de build anterior, não conta como completo). Um peso ausente, truncado ou corrompido dá `LocalModelLoadError.damagedFiles` ("Falhou: arquivos corrompidos…") sem entrar no Core ML, e o loader apaga só os arquivos ruins e o marcador, para a próxima escolha baixar só eles. O vocabulário vira `promptTokens`. O kit é um `PromptSafeWhisperKit`, que contorna o EOT no prefill dos large-v3 (G-036).
+- **Guarda de crash.** Durante cada carga no Core ML (Whisper e Parakeet) existe `<Models>/.voicetype-loading-<id>`; sucesso, erro lançado e saída normal (`applicationWillTerminate` → `endSession`) o removem. No boot, um sentinela que sobrou vira `.voicetype-crashed-<id>`, e o `LocalModelManager` chama `LocalModelSelection.recordCrash`: nenhum fallback automático (boot, falha ou cancelamento da tentativa do boot) carrega um modelo que derrubou o app (cai no Small; se o próprio Small caiu, não carrega nada); só escolhê-lo de novo autoriza outra tentativa e a linha mostra "Falhou: o app fechou ao preparar este modelo…". O registro some quando o modelo carrega com sucesso ou é apagado.
+- `ParakeetBackend`: `AsrManager` do FluidAudio, `.ultra`, estado de decoder novo a cada ditado. Completa com silêncio o áudio com menos de 1 s. Ignora o vocabulário.
+
+**Ditado.** `LocalTranscriber` lê o `transcriptionTarget()` uma vez e usa esse snapshot na transcrição inteira, mesmo que uma troca termine no meio. Só manda o vocabulário quando `model.supportsVocabulary`. Sem modelo ativo, lança `LocalError.notReady`, que vira a notificação "Modelo local não está pronto". Com o motor `auto` e sem chave Groq, o factory usa só o local (nunca tenta o Groq, que só responderia 401). O `preflight` exige a chave apenas com o motor `groq`.
+
+**Arquivos** (`~/Library/Application Support/VoiceType/Models`, `WhisperKitLoader.modelsDirectory`):
+
+```
+Models/
+├── models/argmaxinc/whisperkit-coreml/<id>/                          Whisper (AudioEncoder/TextDecoder .mlmodelc)
+├── models/argmaxinc/whisperkit-coreml/.cache/huggingface/download/<id>/  registros do downloader (etag de cada arquivo)
+├── .voicetype-downloads/<id>/<launch>-<uuid>/                        uma tentativa de download do Whisper, com parciais
+├── models/openai/…                                                   tokenizers, compartilhados, nunca apagados
+└── parakeet-ultra/                                                   Parakeet (parciais *.partial inclusos)
+```
+
+Apagar um Whisper remove a pasta do modelo, os registros e as tentativas de download dele; apagar o Parakeet remove `parakeet-ultra/`.
 
 ## Janela principal
 

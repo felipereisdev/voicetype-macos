@@ -190,7 +190,7 @@ actor MeetingProcessor {
         }
 
         if !pending.isEmpty {
-            let kit = try await WhisperModelManager.loadKit(variant: Self.modelVariant) { _ in }
+            let kit = try await WhisperKitLoader.loadKit(variant: Self.modelVariant) { _ in }
             do {
                 for segment in pending {
                     cache[segment.fileName] = try await transcribe(segment, in: dir, startedAt: manifest.startedAt, kit: kit)

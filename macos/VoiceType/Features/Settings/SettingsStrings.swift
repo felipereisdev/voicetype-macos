@@ -185,10 +185,20 @@ enum SettingsStrings {
     static let engineAuto = "Automático (local, cai pra Groq)"
     static let engineLocal = "Sempre local"
     static let engineGroq = "Sempre Groq"
-    static func modelStatusDownloading(_ pct: Int) -> String { "Baixando modelo… \(pct)%" }
-    static let modelStatusReady = "Modelo pronto (on-device)"
-    static let modelStatusNotReady = "Modelo não carregado — usando Groq"
-    static func modelStatusFailed(_ msg: String) -> String { "Falha ao carregar modelo: \(msg)" }
+    static let localModelHeader = "Modelo"
+    static func localModelDownloading(_ pct: Int) -> String { "Baixando \(pct)%" }
+    static let localModelPreparing = "Preparando…"
+    static let localModelReady = "Pronto"
+    static func localModelInUseUntil(_ name: String) -> String { "Em uso até o \(name) ficar pronto" }
+    static let localModelNotDownloaded = "Não baixado"
+    static let localModelDownloaded = "Baixado"
+    static func localModelFailed(_ msg: String) -> String { "Falhou: \(msg)" }
+    static let localModelCancel = "Cancelar"
+    static let localModelDelete = "Apagar"
+    static let localModelDamaged = "arquivos corrompidos, escolha o modelo de novo para baixá-los"
+    static let localModelCrashed = "o app fechou ao preparar este modelo; escolha de novo ou apague"
+    static let localModelFirstLoadNote = "Depois do download, a primeira preparação do modelo pode levar 1–2 min. O modelo anterior continua funcionando até lá."
+    static func localModelVocabularyIgnored(_ count: Int) -> String { "Seu vocabulário (\(count) termos) é ignorado com este modelo." }
     static let localTranscriptionRefineNote = "Este seletor controla apenas a transcrição (áudio → texto). O refino e a tradução ainda usam o Groq (precisam de internet). Sem conexão, o texto transcrito é colado sem refino, em vez de se perder."
 
     // Local Refinement

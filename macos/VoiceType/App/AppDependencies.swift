@@ -28,7 +28,7 @@ final class AppDependencies {
     let permissionsChecker: PermissionsChecker
     let hudController: HUDController
     let soundFeedback: SoundFeedbackService
-    let whisperModels: WhisperModelManager
+    let localModels: LocalModelManager
     let recordingOrchestrator: RecordingOrchestrator
     let meetingRecorder: MeetingRecorder
     let pendingApprovals: PendingApprovals
@@ -61,9 +61,19 @@ final class AppDependencies {
         self.hudController = resolvedHud
         self.soundFeedback = resolvedSoundFeedback
 
-        let resolvedWhisperModels = WhisperModelManager()
-        self.whisperModels = resolvedWhisperModels
-        resolvedWhisperModels.bootstrap()
+        let configSnapshot = self.configSnapshot
+        let resolvedLocalModels = LocalModelManager(persist: { id in
+            Task { await configSnapshot.update { $0.localTranscriptionModel = id } }
+        })
+        self.localModels = resolvedLocalModels
+        // The app is also the unit-test host: there, loading the user's model
+        // would read, repair or download the real files in Application Support.
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
+            Task {
+                let selectedID = (try? await configStore.load())?.localTranscriptionModel ?? LocalModelCatalog.defaultID
+                resolvedLocalModels.bootstrap(selectedID: selectedID)
+            }
+        }
 
         self.recordingOrchestrator = RecordingOrchestrator(
             configStore: configStore,
@@ -73,7 +83,7 @@ final class AppDependencies {
             paster: paster ?? Paster(),
             recorder: recorder ?? AudioRecorder(),
             soundFeedback: resolvedSoundFeedback,
-            whisperModels: resolvedWhisperModels,
+            localModels: resolvedLocalModels,
             editObserver: EditObserver(store: suggestionStore)
         )
         let pendingApprovals = PendingApprovals(notifier: resolvedNotifier)

@@ -88,6 +88,8 @@ public struct AppConfig: Codable, Equatable, Sendable {
     public var autoEnterEnabled: Bool
     public var vocabularyKeywords: String
     public var transcriptionEngine: String
+    /// On-device transcription model id (a `LocalModelCatalog` entry); unknown ids are handled at boot.
+    public var localTranscriptionModel: String
     public var refineEngine: String
     public var translateEngine: String
     public var continuityFallbackEnabled: Bool
@@ -141,6 +143,7 @@ public struct AppConfig: Codable, Equatable, Sendable {
         autoEnterEnabled: Bool = false,
         vocabularyKeywords: String = "",
         transcriptionEngine: String = "auto",
+        localTranscriptionModel: String = LocalModelCatalog.defaultID,
         refineEngine: String = "auto",
         translateEngine: String = "auto",
         continuityFallbackEnabled: Bool = true,
@@ -176,6 +179,7 @@ public struct AppConfig: Codable, Equatable, Sendable {
         self.autoEnterEnabled = autoEnterEnabled
         self.vocabularyKeywords = vocabularyKeywords
         self.transcriptionEngine = transcriptionEngine
+        self.localTranscriptionModel = localTranscriptionModel
         self.refineEngine = refineEngine
         self.translateEngine = translateEngine
         self.continuityFallbackEnabled = continuityFallbackEnabled
@@ -209,6 +213,7 @@ public struct AppConfig: Codable, Equatable, Sendable {
         case autoEnterEnabled
         case vocabularyKeywords
         case transcriptionEngine
+        case localTranscriptionModel
         case refineEngine
         case translateEngine
         case continuityFallbackEnabled
@@ -258,6 +263,7 @@ public struct AppConfig: Codable, Equatable, Sendable {
         try c.encode(autoEnterEnabled, forKey: .autoEnterEnabled)
         try c.encode(vocabularyKeywords, forKey: .vocabularyKeywords)
         try c.encode(transcriptionEngine, forKey: .transcriptionEngine)
+        try c.encode(localTranscriptionModel, forKey: .localTranscriptionModel)
         try c.encode(refineEngine, forKey: .refineEngine)
         try c.encode(translateEngine, forKey: .translateEngine)
         try c.encode(continuityFallbackEnabled, forKey: .continuityFallbackEnabled)
@@ -298,6 +304,8 @@ public struct AppConfig: Codable, Equatable, Sendable {
             self.vocabularyKeywords = try c2.decodeIfPresent(String.self, forKey: .vocabularyKeywords) ?? defaults.vocabularyKeywords
             self.transcriptionEngine =
                 try c2.decodeIfPresent(String.self, forKey: .transcriptionEngine) ?? defaults.transcriptionEngine
+            self.localTranscriptionModel =
+                try c2.decodeIfPresent(String.self, forKey: .localTranscriptionModel) ?? defaults.localTranscriptionModel
             self.refineEngine =
                 try c2.decodeIfPresent(String.self, forKey: .refineEngine) ?? defaults.refineEngine
             self.translateEngine =
@@ -339,6 +347,7 @@ public struct AppConfig: Codable, Equatable, Sendable {
             self.autoEnterEnabled = defaults.autoEnterEnabled
             self.vocabularyKeywords = defaults.vocabularyKeywords
             self.transcriptionEngine = defaults.transcriptionEngine
+            self.localTranscriptionModel = defaults.localTranscriptionModel
             self.refineEngine = defaults.refineEngine
             self.translateEngine = defaults.translateEngine
             self.continuityFallbackEnabled = defaults.continuityFallbackEnabled

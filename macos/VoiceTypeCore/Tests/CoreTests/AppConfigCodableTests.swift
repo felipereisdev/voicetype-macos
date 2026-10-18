@@ -567,6 +567,12 @@ struct AppConfigCodableTests {
         #expect(v1.openKnowledgeVaultPath == "")
     }
 
+    @Test func localTranscriptionModel_defaults_and_missing_key() throws {
+        #expect(AppConfig().localTranscriptionModel == "openai_whisper-small")
+        let missing = try JSONDecoder().decode(AppConfig.self, from: Data(#"{"schemaVersion":2}"#.utf8))
+        #expect(missing.localTranscriptionModel == "openai_whisper-small")
+    }
+
     @Test func meetingOrgsDefaultCatalogAndTolerantEntries() throws {
         #expect(AppConfig().meetingOrgs == [MeetingOrg(name: "Pessoal")])
         // Hand-edited entries may omit aliases/clients.
