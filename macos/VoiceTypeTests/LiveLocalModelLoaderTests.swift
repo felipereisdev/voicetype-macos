@@ -19,6 +19,21 @@ private final class OfflineURLProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
+/// Counts the injected Whisper download and Core ML load calls.
+private final class WhisperCalls: @unchecked Sendable {
+    private let lock = NSLock()
+    private var downloadCount = 0
+    private var loadCount = 0
+    var downloads: Int { lock.withLock { downloadCount } }
+    var loads: Int { lock.withLock { loadCount } }
+    func downloaded() { lock.withLock { downloadCount += 1 } }
+    func loaded() { lock.withLock { loadCount += 1 } }
+}
+
+private final class StubBackend: LocalSpeechBackend, @unchecked Sendable {
+    func transcribe(samples: [Float], lang: String, vocabulary: String?) async throws -> String { "" }
+}
+
 @MainActor
 final class LiveLocalModelLoaderTests: XCTestCase {
     private var base: URL!
@@ -154,5 +169,76 @@ final class LiveLocalModelLoaderTests: XCTestCase {
         XCTAssertTrue(exists(folder.appendingPathComponent("AudioEncoder.mlmodelc/model.mil")))
         XCTAssertTrue(exists(folder.appendingPathComponent("TextDecoder.mlmodelc/weights/weight.bin")))
         XCTAssertNil(loader.completeBundle(turbo))
+    }
+
+    private func loader(
+        _ calls: WhisperCalls, download: @escaping LiveLocalModelLoader.WhisperDownload
+    ) -> LiveLocalModelLoader {
+        LiveLocalModelLoader(
+            modelsDirectory: base,
+            downloadWhisper: { variant, downloadBase, onProgress in
+                calls.downloaded()
+                return try await download(variant, downloadBase, onProgress)
+            },
+            loadWhisper: { _, _ in
+                calls.loaded()
+                return StubBackend()
+            }
+        )
+    }
+
+    // Regression (review 6 r3): cancelled midway, the downloader returns the
+    // folder without throwing. That partial bundle must not be marked complete,
+    // or the next load hands it to Core ML, which crashes.
+    func test_cancelled_resumed_download_is_not_marked_complete() async throws {
+        let turbo = try model(turboID)
+        let folder = try makeInterruptedBundle(turboID)
+        let calls = WhisperCalls()
+        let cancelling = loader(calls) { _, _, _ in
+            // Like `HubApi.snapshot`: stop at cancellation and return, no throw.
+            while !Task.isCancelled { try? await Task.sleep(nanoseconds: 1_000_000) }
+            return folder
+        }
+
+        let task = Task { try await cancelling.load(turbo) { _ in } }
+        while calls.downloads == 0 { await Task.yield() }
+        task.cancel()
+        let result = await task.result
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError) }
+        XCTAssertEqual(calls.loads, 0, "a cancelled download never reaches Core ML")
+        XCTAssertNil(cancelling.completeBundle(turbo))
+        XCTAssertFalse(exists(folder.appendingPathComponent(LiveLocalModelLoader.completeMarker)))
+        XCTAssertFalse(exists(folder.appendingPathComponent("AudioEncoder.mlmodelc/weights/weight.bin")))
+        XCTAssertTrue(cancelling.isDownloaded(turbo))
+
+        // The next attempt goes through the download (the repair) and, offline,
+        // fails without entering Core ML.
+        let offline = loader(calls) { _, _, _ in throw URLError(.notConnectedToInternet) }
+        do {
+            _ = try await offline.load(turbo) { _ in }
+            XCTFail("an offline repair cannot succeed")
+        } catch {
+            XCTAssertEqual((error as? URLError)?.code, .notConnectedToInternet)
+        }
+        XCTAssertEqual(calls.downloads, 2)
+        XCTAssertEqual(calls.loads, 0)
+    }
+
+    func test_finished_download_is_marked_complete_and_later_loads_from_disk() async throws {
+        let turbo = try model(turboID)
+        let folder = try makeInterruptedBundle(turboID)
+        let calls = WhisperCalls()
+        let online = loader(calls) { _, _, _ in folder }
+
+        _ = try await online.load(turbo) { _ in }
+        XCTAssertEqual(calls.downloads, 1)
+        XCTAssertEqual(calls.loads, 1)
+        XCTAssertNotNil(online.completeBundle(turbo))
+
+        let offline = loader(calls) { _, _, _ in throw URLError(.notConnectedToInternet) }
+        _ = try await offline.load(turbo) { _ in }
+        XCTAssertEqual(calls.downloads, 1, "a complete bundle loads without the repository")
+        XCTAssertEqual(calls.loads, 2)
     }
 }

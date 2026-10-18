@@ -34,16 +34,33 @@ protocol LocalModelLoading {
 struct LiveLocalModelLoader: LocalModelLoading {
     private static let logger = Logger(subsystem: "dev.voicetype.app", category: "LiveLocalModelLoader")
 
-    /// Written in a Whisper model's folder once `WhisperKit.download` returned,
-    /// i.e. every file is on disk. The folders alone prove nothing: an
-    /// interrupted download leaves them without weights, and Core ML crashes
-    /// (it does not throw) loading that.
+    /// Fetches the missing files of a Whisper model and returns its folder.
+    typealias WhisperDownload = @Sendable (
+        _ variant: String, _ downloadBase: URL, _ onProgress: @escaping @Sendable (Double) -> Void
+    ) async throws -> URL
+    /// Loads the Whisper model in a folder into Core ML.
+    typealias WhisperLoad = @Sendable (_ modelFolder: URL, _ tokenizerFolder: URL) async throws -> any LocalSpeechBackend
+
+    /// Written in a Whisper model's folder once a download that was not
+    /// cancelled returned, i.e. every file is on disk. The folders alone prove
+    /// nothing: an interrupted download leaves them without weights, and Core ML
+    /// crashes (it does not throw) loading that.
     static let completeMarker = ".voicetype-complete"
 
     let modelsDirectory: URL
+    private let downloadWhisper: WhisperDownload
+    private let loadWhisper: WhisperLoad
 
-    nonisolated init(modelsDirectory: URL = WhisperKitLoader.modelsDirectory) {
+    nonisolated init(
+        modelsDirectory: URL = WhisperKitLoader.modelsDirectory,
+        downloadWhisper: @escaping WhisperDownload = WhisperKitLoader.download(variant:downloadBase:onProgress:),
+        loadWhisper: @escaping WhisperLoad = { folder, tokenizerFolder in
+            WhisperKitBackend(kit: try await WhisperKitLoader.loadKit(modelFolder: folder, tokenizerFolder: tokenizerFolder))
+        }
+    ) {
         self.modelsDirectory = modelsDirectory
+        self.downloadWhisper = downloadWhisper
+        self.loadWhisper = loadWhisper
     }
 
     private var whisperRepo: URL {
@@ -92,21 +109,21 @@ struct LiveLocalModelLoader: LocalModelLoading {
             if let folder = completeBundle(model) {
                 // Offline or with the repository down, the files on disk still load.
                 do {
-                    let kit = try await WhisperKitLoader.loadKit(modelFolder: folder, tokenizerFolder: modelsDirectory)
-                    return WhisperKitBackend(kit: kit)
+                    return try await loadWhisper(folder, modelsDirectory)
                 } catch {
                     try Task.checkCancellation()
                     // Fall through: the download fetches whatever file is missing.
                     Self.logger.error("Local load of \(model.id, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
                 }
             }
-            let folder = try await WhisperKitLoader.download(variant: model.id, downloadBase: modelsDirectory) { fraction in
+            let folder = try await downloadWhisper(model.id, modelsDirectory) { fraction in
                 progress(fraction >= 1 ? .preparing : .downloading(fraction))
             }
-            FileManager.default.createFile(atPath: folder.appendingPathComponent(Self.completeMarker).path, contents: nil)
+            // Cancelled midway, the downloader returns without throwing
+            // (`HubApi.snapshot`), so only an attempt still running has every file.
             try Task.checkCancellation()
-            let kit = try await WhisperKitLoader.loadKit(modelFolder: folder, tokenizerFolder: modelsDirectory)
-            return WhisperKitBackend(kit: kit)
+            FileManager.default.createFile(atPath: folder.appendingPathComponent(Self.completeMarker).path, contents: nil)
+            return try await loadWhisper(folder, modelsDirectory)
         case .parakeet:
             let folder = parakeetFolder
             try await AsrModels.download(to: folder, version: .ultra) { update in
