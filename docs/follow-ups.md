@@ -118,9 +118,9 @@ No uso diário (gaps de segundos+ entre ditados) o device solta a tempo, então 
 
 **Severidade:** Minor
 
-`LocalTranscriber.transcribe(audio:lang:vocabulary:)` acessa `WhisperKit` (não-`Sendable`) fora de qualquer ator. Seguro hoje: `kit` é imutável após `WhisperModelManager` entrar em `.ready`, e o pipeline é serializado (cada nova gravação cancela a `Task` anterior — um único consumidor por vez). Nenhuma corrida é possível dentro dessas invariâncias.
+`WhisperKitBackend.transcribe(samples:lang:vocabulary:)` (chamado pelo `LocalTranscriber`) acessa `WhisperKit` (não-`Sendable`) fora de qualquer ator, e o backend é `@unchecked Sendable`. Seguro hoje: o `LocalModelManager` só cria o backend depois que `loadModels()` e `prewarmModels()` terminaram, e a partir daí `kit` não é mais mutado; o pipeline é serializado (cada nova gravação cancela a `Task` anterior — um único consumidor por vez). Nenhuma corrida é possível dentro dessas invariâncias.
 
-**Ação:** ao habilitar `-strict-concurrency=complete` no App target (migração Swift 6), o compilador vai rejeitar a captura de `kit`. Opções: (a) isolar `LocalTranscriber` num ator próprio; (b) marcar `WhisperKit` como `@unchecked Sendable` com comentário justificando a invariância; (c) reestruturar o factory do pipeline. Revisar gotcha G-020.
+**Ação:** ao habilitar `-strict-concurrency=complete` no App target (migração Swift 6), o compilador vai rejeitar a captura de `kit`. Opções: (a) isolar `WhisperKitBackend` num ator próprio; (b) marcar `WhisperKit` como `@unchecked Sendable` com comentário justificando a invariância; (c) reestruturar o factory do pipeline. Revisar gotcha G-020.
 
 **Quando:** ao ligar strict concurrency no App target.
 

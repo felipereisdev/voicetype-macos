@@ -393,13 +393,13 @@ Temperatura já é `0.2`; `max_tokens` 1024. Nenhum sozinho resolvia.
 
 ## G-020 — `WhisperKit` não-Sendable off-actor: fronteira segura hoje, bloqueante no Swift 6
 
-**Sintoma (futuro):** ao habilitar `-strict-concurrency=complete` no App target, o compilador rejeita a captura de `kit: WhisperKit` (não-`Sendable`) em `LocalTranscriber.transcribe(audio:lang:vocabulary:)` fora de qualquer ator — erro do tipo "capture of non-Sendable type in @Sendable closure".
+**Sintoma (futuro):** ao habilitar `-strict-concurrency=complete` no App target, o compilador rejeita a captura de `kit: WhisperKit` (não-`Sendable`) em `WhisperKitBackend.transcribe(samples:lang:vocabulary:)` fora de qualquer ator (ou recusa o `@unchecked Sendable` do backend) — erro do tipo "capture of non-Sendable type in @Sendable closure".
 
-**Por que é seguro hoje:** duas invariâncias combinadas evitam corrida: (1) `WhisperModelManager.transcriber()` só libera `kit` quando o estado é `.ready` — a partir daí o objeto não é mais mutado; (2) o pipeline é serializado (`RecordingOrchestrator` cancela a `Task` anterior antes de criar uma nova), garantindo no máximo um consumidor ativo de `kit` por vez.
+**Por que é seguro hoje:** duas invariâncias combinadas evitam corrida: (1) o `LocalModelManager` só entrega um `WhisperKitBackend` (via `transcriptionTarget()`) depois que `loadModels()` e `prewarmModels()` terminaram — a partir daí `kit` não é mais mutado; (2) o pipeline é serializado (`RecordingOrchestrator` cancela a `Task` anterior antes de criar uma nova), garantindo no máximo um consumidor ativo de `kit` por vez.
 
-**Workaround atual:** `LocalTranscriber` compila sem erro porque o App target não usa `-strict-concurrency=complete`. O doc-comment em `transcribe(audio:lang:vocabulary:)` documenta a invariância para revisão futura.
+**Workaround atual:** `WhisperKitBackend` é `@unchecked Sendable` e compila sem erro porque o App target não usa `-strict-concurrency=complete`. O doc-comment do `WhisperKitBackend` documenta a invariância para revisão futura.
 
-**Ação ao migrar:** isolar `LocalTranscriber` num ator próprio, ou marcar `WhisperKit` como `@unchecked Sendable` com justificativa das invariâncias acima. Ver FU-N10.
+**Ação ao migrar:** isolar `WhisperKitBackend` num ator próprio, ou marcar `WhisperKit` como `@unchecked Sendable` com justificativa das invariâncias acima. Ver FU-N10.
 
 ---
 
@@ -598,7 +598,7 @@ substituições, similaridade ≥0.5) descarta tudo.
 
 **Causa:** a Groq bloqueia IPs de saída de VPN com HTTP 403 `{"error":{"message":"Access denied. Please check your network settings."}}`. O `GroqClient` tratava 401 e 403 igual (`invalidKey`), e no modo `groq` não havia plano B.
 
-**Fix:** 401 → `GroqError.invalidKey`; 403 → `GroqError.networkBlocked(message:)` (mensagem PT-BR sugerindo desligar a VPN), sem retry. `PipelineError.isConnectivityFailure` (403, offline, timeout) faz o modo `groq` cair pro WhisperKit local via `FallbackTranscribe` — **só se o modelo já estiver carregado** (`WhisperModelManager.isReady`); esse caminho nunca baixa modelo.
+**Fix:** 401 → `GroqError.invalidKey`; 403 → `GroqError.networkBlocked(message:)` (mensagem PT-BR sugerindo desligar a VPN), sem retry. `PipelineError.isConnectivityFailure` (403, offline, timeout) faz o modo `groq` cair pro WhisperKit local via `FallbackTranscribe` — **só se o modelo já estiver carregado** (`LocalModelManager.isReady`); esse caminho nunca baixa modelo.
 
 **Referência:** `GroqClient.expectOK`, `RetryPolicy.isRetryable`, `PipelineError.isConnectivityFailure`, `RecordingOrchestrator.defaultPipelineFactory`.
 
