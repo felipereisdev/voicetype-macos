@@ -44,6 +44,7 @@ macos/
 │   │   │   ├── Output/           Paster (AX insert, else NSPasteboard + synthesized Cmd+V)
 │   │   │   └── HUD/              recording indicator (notch / pill)
 │   │   ├── Meeting/              detection, mic + system-audio capture, diarization, calendar, processing
+│   │   ├── Onboarding/           "Aprender a usar" window (steps + real practice takes), OnboardingPracticeSink
 │   │   ├── MenuBar/, Settings/, History/
 │   ├── Platform/                 ActivationPolicy/, AutoStart/, Notifications/, Permissions/
 │   └── Resources/                Assets.xcassets, Info.plist

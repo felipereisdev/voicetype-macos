@@ -26,6 +26,15 @@ struct MenuBarContent: View {
         }
         .keyboardShortcut("h", modifiers: [.command, .shift])
 
+        Button {
+            openWindow(id: OnboardingWindow.id)
+            DispatchQueue.main.async {
+                NSApp.activate(ignoringOtherApps: true)
+            }
+        } label: {
+            Label(OnboardingStrings.menuItem, systemImage: "graduationcap")
+        }
+
         Divider()
 
         Button {
@@ -68,16 +77,8 @@ struct MenuBarContent: View {
         .keyboardShortcut("q", modifiers: .command)
     }
 
-    // Same window for both entries: select first, so an already-open window
-    // switches pane and a new one opens on it. The Window scene's onAppear
-    // flips the policy, but we also bring the app foreground so the window
-    // becomes key + the user sees it.
     private func open(_ destination: MainDestination) {
-        router.selection = destination
-        openWindow(id: MainWindowRouter.windowID)
-        DispatchQueue.main.async {
-            NSApp.activate(ignoringOtherApps: true)
-        }
+        router.show(destination, using: openWindow)
     }
 
     private func review(_ item: PendingMeeting) {

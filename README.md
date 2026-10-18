@@ -6,6 +6,9 @@ App de barra de menu para macOS: você segura um atalho, fala, e o texto transcr
 
 ## O que faz
 
+### Aprender a usar
+No menu, **"Aprender a usar o VoiceType…"** abre uma janela em passos (Anterior / Próximo / Concluir): Antes de começar (status ao vivo de Microfone, Acessibilidade, Notificações e do modelo local), Ditado, Mãos livres, Tradução, Nota de voz, Histórico, Reuniões e Personalize. Ditado, Mãos livres e Tradução têm prática de verdade: com seu atalho real, o texto é colado num campo da própria janela e o passo ganha "Feito!". Os atalhos mostrados vêm da sua config. Reabrir pelo menu começa do passo 1.
+
 ### Ditado
 - **Segure** o atalho (padrão na primeira execução: `Fn` em teclado Apple, senão `Control+Alt`), fale, **solte**: o texto refinado é colado no app em foco.
 - **Mãos livres:** toque duplo no atalho trava a gravação; outro toque encerra e cola. `Espaço` enquanto segura também trava. `Esc` cancela.

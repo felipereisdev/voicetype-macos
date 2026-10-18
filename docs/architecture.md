@@ -25,6 +25,7 @@ macos/
 │   │   │   └── HUD/               HUDController + SwiftUI HUDView + waveform
 │   │   ├── Settings/              7 SwiftUI sections + ShortcutRecorderField
 │   │   ├── History/               SwiftUI Window scene + ViewModel + AppIconResolver
+│   │   ├── Onboarding/            janela "Aprender a usar" (Window id "onboarding"), ViewModel, passos, OnboardingPracticeSink
 │   │   └── MenuBar/               MenuBarContent (SwiftUI MenuBarExtra)
 │   ├── Platform/
 │   │   ├── Notifications/         Notifier (UNUserNotificationCenter)
@@ -77,6 +78,7 @@ macos/
 | `Notifier` | `UNUserNotificationCenter` wrapper. Dedupe `(level + title + body)` 5 s window, GC entries > 64. Bootstrap em `applicationDidFinishLaunching` |
 | `LoginItem` | `SMAppService.mainApp` register/unregister. Facade com enum `.enabled / .notRegistered / .requiresApproval / .notFound` |
 | `PermissionsChecker` | `@Observable` actor. Status live de Mic, Accessibility, Notifications + deep-links `x-apple.systempreferences:…` |
+| `Features/Onboarding` | Janela `Window(id: "onboarding")` aberta pelo item de menu "Aprender a usar o VoiceType…". `OnboardingWindowView` cria um `OnboardingViewModel` a cada abertura (reabrir começa do passo 1 e abre uma sessão nova no `OnboardingPracticeSink`) e o descarta no `onDisappear`, que encerra a sessão e grava `onboardingCompleted = true`; "Concluir" grava e fecha. O VM anda pelo `OnboardingFlow` (Core), informa ao sink o passo visível e se a janela é a chave (`controlActiveState`), e marca uma prática só se o texto confirmado pelo sink estiver de fato no campo do passo. Cada `TextEditor` de prática tem o `AXIdentifier` do ticket (`onboarding.practice.<sessão>.<passo>`), o único destino em que o `Paster` cola na prática. As práticas listam os bloqueios de `OnboardingReadiness` com botões para os Ajustes ou para a seção certa de Configurações (`MainWindowRouter.show`) |
 | `ActivationPolicyTracker` | Counter shared pra flips `.regular` ↔ `.accessory` enquanto a janela principal está aberta (mantém Dock icon visível enquanto uma delas tiver aberta) |
 
 ## Runtime flow

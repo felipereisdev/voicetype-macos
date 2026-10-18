@@ -68,6 +68,18 @@ struct VoiceTypeApp: App {
         }
         .windowResizability(.contentMinSize)
         .commandsRemoved()
+
+        // Onboarding: step-by-step window with real practice takes. The menu
+        // reopens it at any time, always from step 1.
+        Window(OnboardingStrings.windowTitle, id: OnboardingWindow.id) {
+            OnboardingWindowView()
+                .environment(deps)
+                .environment(router)
+                .onAppear { ActivationPolicyTracker.enter() }
+                .onDisappear { ActivationPolicyTracker.leave() }
+        }
+        .windowResizability(.contentSize)
+        .commandsRemoved()
     }
 }
 
