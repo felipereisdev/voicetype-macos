@@ -33,12 +33,8 @@ struct VoiceTypeApp: App {
                 .environment(router)
                 .environment(approvalRouter)
         } label: {
-            // Red dot next to the icon while a meeting records — visible without opening the menu.
-            if deps.meetingRecorder.isRecording {
-                Image(nsImage: MenuBarIconRecording.image)
-            } else {
-                Image("MenuBarIcon")
-            }
+            MenuBarLabel()
+                .environment(deps)
         }
         .menuBarExtraStyle(.menu)
 
@@ -80,6 +76,36 @@ struct VoiceTypeApp: App {
         }
         .windowResizability(.contentSize)
         .commandsRemoved()
+    }
+}
+
+/// The `MenuBarExtra` label, the only view built at launch: it also opens the
+/// onboarding by itself while it was never finished or closed. The `.task` sits
+/// on the stable container, not on each `Image`, so swapping in the red dot
+/// doesn't run it again; `checkedOnboarding` guards against any other rerun.
+struct MenuBarLabel: View {
+    @Environment(\.openWindow) private var openWindow
+    @Environment(AppDependencies.self) private var deps
+    @State private var checkedOnboarding = false
+
+    var body: some View {
+        HStack(spacing: 0) {
+            // Red dot next to the icon while a meeting records — visible without opening the menu.
+            if deps.meetingRecorder.isRecording {
+                Image(nsImage: MenuBarIconRecording.image)
+            } else {
+                Image("MenuBarIcon")
+            }
+        }
+        .task {
+            guard !checkedOnboarding else { return }
+            checkedOnboarding = true
+            guard await OnboardingLaunch.shouldAutoOpen(store: deps.configStore) else { return }
+            openWindow(id: OnboardingWindow.id)
+            DispatchQueue.main.async {
+                NSApp.activate(ignoringOtherApps: true)
+            }
+        }
     }
 }
 

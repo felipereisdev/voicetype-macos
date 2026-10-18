@@ -121,6 +121,8 @@
 		A040000000000000000000E6 /* OnboardingWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B040000000000000000000E6 /* OnboardingWindowView.swift */; };
 		A040000000000000000000E7 /* OnboardingStepViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B040000000000000000000E7 /* OnboardingStepViews.swift */; };
 		A040000000000000000000E8 /* OnboardingViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B040000000000000000000E8 /* OnboardingViewModelTests.swift */; };
+		A040000000000000000000E9 /* OnboardingLaunch.swift in Sources */ = {isa = PBXBuildFile; fileRef = B040000000000000000000E9 /* OnboardingLaunch.swift */; };
+		A040000000000000000000EA /* OnboardingLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B040000000000000000000EA /* OnboardingLaunchTests.swift */; };
 		A00F000000000000000000A7 /* RecordingOrchestrator+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00F000000000000000000A7 /* RecordingOrchestrator+Helpers.swift */; };
 		DE3214E92FE415BF000EA50B /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = DE3214E82FE415BF000EA50B /* WhisperKit */; };
 		A010000000000000000000A1 /* WhisperKitLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B010000000000000000000A1 /* WhisperKitLoader.swift */; };
@@ -283,6 +285,8 @@
 		B040000000000000000000E6 /* OnboardingWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWindowView.swift; sourceTree = "<group>"; };
 		B040000000000000000000E7 /* OnboardingStepViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingStepViews.swift; sourceTree = "<group>"; };
 		B040000000000000000000E8 /* OnboardingViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewModelTests.swift; sourceTree = "<group>"; };
+		B040000000000000000000E9 /* OnboardingLaunch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingLaunch.swift; sourceTree = "<group>"; };
+		B040000000000000000000EA /* OnboardingLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingLaunchTests.swift; sourceTree = "<group>"; };
 		B00F000000000000000000A7 /* RecordingOrchestrator+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RecordingOrchestrator+Helpers.swift"; sourceTree = "<group>"; };
 		B010000000000000000000A1 /* WhisperKitLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperKitLoader.swift; sourceTree = "<group>"; };
 		B010000000000000000000A2 /* LocalTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalTranscriber.swift; sourceTree = "<group>"; };
@@ -346,6 +350,7 @@
 				B040000000000000000000E5 /* OnboardingViewModel.swift */,
 				B040000000000000000000E6 /* OnboardingWindowView.swift */,
 				B040000000000000000000E7 /* OnboardingStepViews.swift */,
+				B040000000000000000000E9 /* OnboardingLaunch.swift */,
 			);
 			path = Onboarding;
 			sourceTree = "<group>";
@@ -355,6 +360,7 @@
 			children = (
 				B040000000000000000000E3 /* OnboardingPracticeTests.swift */,
 				B040000000000000000000E8 /* OnboardingViewModelTests.swift */,
+				B040000000000000000000EA /* OnboardingLaunchTests.swift */,
 			);
 			path = Onboarding;
 			sourceTree = "<group>";
@@ -991,6 +997,7 @@
 				A040000000000000000000E6 /* OnboardingWindowView.swift in Sources */,
 				A040000000000000000000E7 /* OnboardingStepViews.swift in Sources */,
 				A040000000000000000000E2 /* OnboardingPracticeDeliveryAdapter.swift in Sources */,
+				A040000000000000000000E9 /* OnboardingLaunch.swift in Sources */,
 				A00F000000000000000000A7 /* RecordingOrchestrator+Helpers.swift in Sources */,
 				A010000000000000000000A1 /* WhisperKitLoader.swift in Sources */,
 				A010000000000000000000A2 /* LocalTranscriber.swift in Sources */,
@@ -1016,6 +1023,7 @@
 				A020000000000000000000D9 /* ApprovalViewModelTests.swift in Sources */,
 				A040000000000000000000E3 /* OnboardingPracticeTests.swift in Sources */,
 				A040000000000000000000E8 /* OnboardingViewModelTests.swift in Sources */,
+				A040000000000000000000EA /* OnboardingLaunchTests.swift in Sources */,
 				A008000000000000000000A4 /* LoginItemTests.swift in Sources */,
 				A008000000000000000000A5 /* SystemSettingsLinkTests.swift in Sources */,
 				A001000000000000000000A5 /* AppDelegateSmokeTests.swift in Sources */,
