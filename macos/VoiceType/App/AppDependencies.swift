@@ -30,6 +30,8 @@ final class AppDependencies {
     let soundFeedback: SoundFeedbackService
     let localModels: LocalModelManager
     let recordingOrchestrator: RecordingOrchestrator
+    /// Shared by the onboarding window and the orchestrator (practice takes).
+    let onboardingPractice: OnboardingPracticeSink
     let meetingRecorder: MeetingRecorder
     let pendingApprovals: PendingApprovals
     let meetingDetector: MeetingDetector
@@ -75,6 +77,8 @@ final class AppDependencies {
             }
         }
 
+        let onboardingPractice = OnboardingPracticeSink()
+        self.onboardingPractice = onboardingPractice
         self.recordingOrchestrator = RecordingOrchestrator(
             configStore: configStore,
             historyStore: historyStore,
@@ -84,7 +88,8 @@ final class AppDependencies {
             recorder: recorder ?? AudioRecorder(),
             soundFeedback: resolvedSoundFeedback,
             localModels: resolvedLocalModels,
-            editObserver: EditObserver(store: suggestionStore)
+            editObserver: EditObserver(store: suggestionStore),
+            practiceSink: onboardingPractice
         )
         let pendingApprovals = PendingApprovals(notifier: resolvedNotifier)
         self.pendingApprovals = pendingApprovals

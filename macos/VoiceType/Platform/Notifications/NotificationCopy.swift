@@ -85,4 +85,8 @@ enum NotificationCopy {
     // Focus target
     static let noTargetTitle = "Sem app de destino"
     static let noTargetBody  = "Foque uma janela antes de iniciar a gravação."
+
+    // Onboarding practice
+    static let practiceDestinationGoneTitle = "Prática encerrada"
+    static let practiceDestinationGoneBody  = "O texto não foi colado; ficou na área de transferência e no Histórico."
 }

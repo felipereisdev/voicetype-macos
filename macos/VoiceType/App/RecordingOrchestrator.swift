@@ -108,9 +108,20 @@ final class RecordingOrchestrator {
     var pipelineFactory: PipelineFactory
     let historyStore: HistoryStore
     let editObserver: EditObserver?
+    let practiceSink: OnboardingPracticeSink?
+    // Test seams: the external frontmost app (nil when it is VoiceType) and
+    // whether VoiceType itself is in front.
+    var frontmostSnapshot: @MainActor () -> FrontmostAppSnapshot? = FocusedApp.snapshot
+    var ownAppIsFrontmost: @MainActor () -> Bool = {
+        NSWorkspace.shared.frontmostApplication?.processIdentifier == ProcessInfo.processInfo.processIdentifier
+    }
 
     private(set) var capturedMode: Mode = .refine
     var capturedTarget: FrontmostAppSnapshot?
+    /// Set at press when the take goes to the onboarding practice field.
+    private(set) var capturedPractice: OnboardingPracticeTicket?
+    /// The take was locked hands-free.
+    private(set) var capturedLocked = false
     /// Text around the caret at hotkey-down (#41); fed to the refiner when
     /// `cursorContextEnabled` (#54). Not read at all while the toggle is off.
     var capturedContext: CursorContext?
@@ -133,7 +144,8 @@ final class RecordingOrchestrator {
         shortcutManager: ShortcutManager? = nil,
         soundFeedback: SoundFeedbackService? = nil,
         localModels: LocalModelManager,
-        editObserver: EditObserver? = nil
+        editObserver: EditObserver? = nil,
+        practiceSink: OnboardingPracticeSink? = nil
     ) {
         self.configStore = configStore
         self.historyStore = historyStore
@@ -147,6 +159,7 @@ final class RecordingOrchestrator {
         self.soundFeedback = soundFeedback ?? SoundFeedbackService()
         self.localModels = localModels
         self.editObserver = editObserver
+        self.practiceSink = practiceSink
     }
 
     func start() {
@@ -185,7 +198,9 @@ final class RecordingOrchestrator {
                 case .pressed(let mode): await self?.handlePressed(mode, stateMachine: sm)
                 case .released(let mode): await self?.handleReleased(mode, stateMachine: sm)
                 case .cancelled(let mode): await self?.handleCancelled(mode, stateMachine: sm)
-                case .locked: self?.hud.markLocked()
+                case .locked:
+                    self?.hud.markLocked()
+                    self?.capturedLocked = true
                 }
             }
         }
@@ -208,7 +223,16 @@ final class RecordingOrchestrator {
     // UI side-effects (HUD, notifications) live in the +Helpers extension.
     private func handlePressed(_ mode: Mode, stateMachine: AppStateMachine) async {
         capturedMode = mode
-        capturedTarget = FocusedApp.snapshot()
+        capturedLocked = false
+        capturedPractice = nil
+        capturedTarget = frontmostSnapshot()
+        // VoiceType in front is no target, except for the onboarding practice:
+        // the ticket is taken here, synchronously, before any await.
+        if capturedTarget == nil, mode != .voiceNote, ownAppIsFrontmost(),
+           let ticket = practiceSink?.ticket() {
+            capturedPractice = ticket
+            capturedTarget = FocusedApp.ownApp()
+        }
         capturedContext = nil
         logger.info("press: mode=\(mode.rawValue, privacy: .public) target=\(self.capturedTarget?.bundleIdentifier ?? "(none)", privacy: .public)")
 
@@ -315,31 +339,49 @@ final class RecordingOrchestrator {
                 Task { @MainActor in await self?.notifyDegraded(mode: degradedMode, error: error) }
             }
         )
+        let delivery: PasterDelivery
+        if isVoiceNote {
+            delivery = DailyNoteDeliveryAdapter(
+                vault: vault,
+                kind: vaultKind,
+                cliPath: cfg.claudeCLIPath,
+                rawTranscript: { await pipeline.lastRawTranscript },
+                onSaved: { @MainActor [weak self] title in
+                    let daily = vaultKind == .openKnowledge
+                        ? OKInbox.dailyURL(in: vault, for: Date())
+                        : DailyNote.url(in: vault, for: Date())
+                    let note = daily.deletingPathExtension().lastPathComponent
+                    if let title {
+                        await self?.notifier.success(title: NotificationCopy.voiceNoteSavedTitle(title), body: note)
+                    } else {
+                        await self?.notifier.info(title: NotificationCopy.voiceNoteUntitledTitle, body: note)
+                    }
+                }
+            )
+        } else if let practice = capturedPractice, let target, let practiceSink {
+            // No learnHook: the EditObserver must not watch the onboarding window.
+            delivery = OnboardingPracticeDeliveryAdapter(
+                paster: paster,
+                target: target,
+                sink: practiceSink,
+                ticket: practice,
+                translationRequested: capturedMode == .translate,
+                handsFree: capturedLocked,
+                rawTranscript: { await pipeline.lastRawTranscript },
+                history: cfg.history.enabled
+                    ? HistoryRecorderAdapter(store: historyStore, cap: cfg.history.retentionCount)
+                    : nil
+            )
+        } else {
+            delivery = PasterDeliveryAdapter(
+                paster: paster,
+                lookupTarget: { [target] _ in target },
+                onPasted: learnHook(cfg: cfg, mode: pipelineMode)
+            )
+        }
         let runUseCase = RunPipelineUseCase(
             pipeline: PipelineRunnerAdapter(pipeline: pipeline),
-            paster: isVoiceNote
-                ? DailyNoteDeliveryAdapter(
-                    vault: vault,
-                    kind: vaultKind,
-                    cliPath: cfg.claudeCLIPath,
-                    rawTranscript: { await pipeline.lastRawTranscript },
-                    onSaved: { @MainActor [weak self] title in
-                        let daily = vaultKind == .openKnowledge
-                            ? OKInbox.dailyURL(in: vault, for: Date())
-                            : DailyNote.url(in: vault, for: Date())
-                        let note = daily.deletingPathExtension().lastPathComponent
-                        if let title {
-                            await self?.notifier.success(title: NotificationCopy.voiceNoteSavedTitle(title), body: note)
-                        } else {
-                            await self?.notifier.info(title: NotificationCopy.voiceNoteUntitledTitle, body: note)
-                        }
-                    }
-                )
-                : PasterDeliveryAdapter(
-                    paster: paster,
-                    lookupTarget: { [target] _ in target },
-                    onPasted: learnHook(cfg: cfg, mode: pipelineMode)
-                ),
+            paster: delivery,
             history: HistoryRecorderAdapter(store: historyStore, cap: cfg.history.retentionCount)
         )
 

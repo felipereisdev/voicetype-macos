@@ -96,6 +96,11 @@ macos/
    - `HistoryStore.add(...)`.
 5. Erro em qualquer stage: `Notifier.error(...)`, restore `.idle`, log via `os.Logger`.
 6. Nota de voz (#79, modo 1): `voiceNoteShortcut` (default `Alt+N` = ⌥N, segurar; vazio = desligado) roda o mesmo fluxo com `Mode.voiceNote`, mas o `RunPipelineUseCase` recebe `DailyNoteDeliveryAdapter` no lugar do `Paster`: `DailyNote.append` grava `- HH:mm texto` sob `## Ideias` em `<meetingNotesFolder>/Daily/YYYY/YYYY-MM-DD.md` (cria a nota/seção se faltar; escrita atômica). Estilo de refino e histórico usam `md.obsidian`. Falha de escrita → texto vai pro clipboard + notificação de erro.
+7. Prática do onboarding: com o VoiceType na frente, `FocusedApp.snapshot()` devolve `nil` e o `preflight` avisa "Sem app de destino". A única exceção é a prática: se a janela do onboarding é a janela-chave num passo de prática (`OnboardingPracticeSink.ticket()`) e o modo não é nota de voz, o press tira de forma síncrona, antes de qualquer `await`, um `OnboardingPracticeTicket` (sessão da janela + passo), e o alvo passa a ser `FocusedApp.ownApp()`. Não há consulta de AX no press. A entrega é o `OnboardingPracticeDeliveryAdapter`, sem `learnHook`:
+   - fechar, reabrir ou mudar de passo invalida o ticket, e a entrega vira `destinationGone` (nada colado, texto no clipboard, aviso "Prática encerrada");
+   - com o ticket válido, chama o `Paster` real com `requiredField` = pid do VoiceType + `AXIdentifier` `onboarding.practice.<sessão>.<passo>`, que só o `TextEditor` daquela sessão e daquele passo tem. Sem `prepareFocus`, o `Paster` lê o elemento focado **do sistema** (`AXUIElementCreateSystemWide`, o que recebe o teclado e o Cmd+V) depois da ativação, escreve por AX só se o mesmo elemento da escrita tiver esse pid e esse identificador, e confere o foco do sistema de novo antes do Cmd+V. Qualquer divergência dá `PasterError.focusMoved`, com o texto no clipboard;
+   - o `RunPipelineUseCase` só grava o Histórico depois de uma colagem sem erro, então o adaptador grava ele mesmo a entrada (se `history.enabled`) de toda entrega recusada. Cada take tem exatamente uma entrada;
+   - depois da colagem confirmada, avisa o sink com um `OnboardingTake`. A tradução conta só se o texto colado difere de `Pipeline.lastRawTranscript`, porque o `RawFallbackTranslate` devolve o texto cru quando a tradução falha.
 
 ## Permissions matrix
 

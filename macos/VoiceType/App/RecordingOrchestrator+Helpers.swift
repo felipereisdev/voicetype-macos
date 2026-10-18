@@ -165,6 +165,11 @@ extension RecordingOrchestrator {
                 title: NotificationCopy.voiceNoteFailedTitle,
                 body: NotificationCopy.voiceNoteFailedBody(failed.detail)
             )
+        case OnboardingPracticeError.destinationGone:
+            await notifier.error(
+                title: NotificationCopy.practiceDestinationGoneTitle,
+                body: NotificationCopy.practiceDestinationGoneBody
+            )
         case let pasterError as PasterError:
             await notifier.error(
                 title: NotificationCopy.pasteFailedTitle,
