@@ -125,6 +125,8 @@ public struct AppConfig: Codable, Equatable, Sendable {
     public var meetingVaultKind: MeetingVaultKind
     /// Root of the OpenKnowledge project (the folder holding `.ok/`; `~` expanded at use; empty = not set).
     public var openKnowledgeVaultPath: String
+    /// Set once the onboarding window was finished or closed; false shows it at launch.
+    public var onboardingCompleted: Bool
 
     public init(
         schemaVersion: Int = 2,
@@ -161,7 +163,8 @@ public struct AppConfig: Codable, Equatable, Sendable {
         meetingAudioRetentionDays: Int = 7,
         voiceNoteShortcut: String = "Alt+N",
         meetingVaultKind: MeetingVaultKind = .obsidian,
-        openKnowledgeVaultPath: String = ""
+        openKnowledgeVaultPath: String = "",
+        onboardingCompleted: Bool = false
     ) {
         self.schemaVersion = schemaVersion
         self.groq = groq
@@ -198,6 +201,7 @@ public struct AppConfig: Codable, Equatable, Sendable {
         self.voiceNoteShortcut = voiceNoteShortcut
         self.meetingVaultKind = meetingVaultKind
         self.openKnowledgeVaultPath = openKnowledgeVaultPath
+        self.onboardingCompleted = onboardingCompleted
     }
 
     // MARK: - Codable with v1→v2 migration
@@ -232,6 +236,7 @@ public struct AppConfig: Codable, Equatable, Sendable {
         case voiceNoteShortcut
         case meetingVaultKind
         case openKnowledgeVaultPath
+        case onboardingCompleted
     }
 
     // v1 flat keys used only during decode migration
@@ -282,6 +287,7 @@ public struct AppConfig: Codable, Equatable, Sendable {
         try c.encode(voiceNoteShortcut, forKey: .voiceNoteShortcut)
         try c.encode(meetingVaultKind, forKey: .meetingVaultKind)
         try c.encode(openKnowledgeVaultPath, forKey: .openKnowledgeVaultPath)
+        try c.encode(onboardingCompleted, forKey: .onboardingCompleted)
     }
 
     public init(from decoder: Decoder) throws {
@@ -329,6 +335,8 @@ public struct AppConfig: Codable, Equatable, Sendable {
                 .flatMap(MeetingVaultKind.init(rawValue:)) ?? defaults.meetingVaultKind
             self.openKnowledgeVaultPath =
                 try c2.decodeIfPresent(String.self, forKey: .openKnowledgeVaultPath) ?? defaults.openKnowledgeVaultPath
+            self.onboardingCompleted =
+                try c2.decodeIfPresent(Bool.self, forKey: .onboardingCompleted) ?? defaults.onboardingCompleted
             self.groq = try c2.decodeIfPresent(GroqConfig.self, forKey: .groq) ?? defaults.groq
             self.shortcuts = try c2.decodeIfPresent(ShortcutConfig.self, forKey: .shortcuts) ?? defaults.shortcuts
             self.recording = try c2.decodeIfPresent(RecordingConfig.self, forKey: .recording) ?? defaults.recording
@@ -366,6 +374,7 @@ public struct AppConfig: Codable, Equatable, Sendable {
             self.voiceNoteShortcut = defaults.voiceNoteShortcut
             self.meetingVaultKind = defaults.meetingVaultKind
             self.openKnowledgeVaultPath = defaults.openKnowledgeVaultPath
+            self.onboardingCompleted = defaults.onboardingCompleted
             self.groq = GroqConfig(
                 apiKey: try c1.decodeIfPresent(String.self, forKey: .groqApiKey) ?? ""
             )

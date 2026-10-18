@@ -355,6 +355,19 @@ struct ConfigStoreTests {
         #expect(reloaded == next)
     }
 
+    @Test("onboardingCompleted survives save + reload")
+    func roundTripsOnboardingCompleted() async throws {
+        let (store, dir, configURL) = try makeTempStore()
+        defer { cleanup(dir) }
+
+        var next = AppConfig()
+        next.onboardingCompleted = true
+        try await store.save(next)
+
+        let reloaded = try await ConfigStore(fileURL: configURL).load()
+        #expect(reloaded.onboardingCompleted == true)
+    }
+
     @Test("first run seeds the refine shortcut by hardware")
     func firstRunSeedsShortcut() async throws {
         let (fnStore, fnDir, _) = try makeTempStore()
