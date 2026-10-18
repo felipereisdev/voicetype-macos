@@ -53,33 +53,43 @@ private final class Gate: @unchecked Sendable {
     }
 }
 
-/// A Whisper download that behaves like HubApi's at cancellation: it returns at
-/// once, while the downloader's own task goes on moving finished files into the
-/// bundle (which recreates its folders) and growing a partial for a moment.
-private final class LateWriter: @unchecked Sendable {
+/// HubApi's downloader cancelled before it registered its worker: the call
+/// returns at cancellation, but the worker was never cancelled. After a silence
+/// longer than any quiet period it finishes a file the way `moveDownloadedFile`
+/// does, in the `downloadBase` it was given: removes the destination, recreates
+/// the folders, moves the file in.
+private final class OrphanWorker: @unchecked Sendable {
     private let lock = NSLock()
     private var finished = false
     var done: Bool { lock.withLock { finished } }
 
-    func download(into folder: URL, cache: URL) -> LiveLocalModelLoader.WhisperDownload {
-        { _, _, _ in
+    func download(silence: UInt64 = 1_200_000_000) -> LiveLocalModelLoader.WhisperDownload {
+        { variant, downloadBase, _ in
             while !Task.isCancelled { try? await Task.sleep(nanoseconds: 1_000_000) }
+            let repo = downloadBase.appendingPathComponent("models/argmaxinc/whisperkit-coreml")
             Task.detached {
+                try? await Task.sleep(nanoseconds: silence)
                 let fm = FileManager.default
-                for index in 0..<3 {
-                    try? await Task.sleep(nanoseconds: 150_000_000)
-                    let moved = folder.appendingPathComponent("Late\(index).mlmodelc/weights/weight.bin")
-                    let partial = cache.appendingPathComponent("Late\(index).mlmodelc/weights/weight.bin.abc.incomplete")
-                    for file in [moved, partial] {
+                for path in ["AudioEncoder.mlmodelc/weights/weight.bin", "config.json"] {
+                    let moved = repo.appendingPathComponent(variant).appendingPathComponent(path)
+                    let record = repo.appendingPathComponent(".cache/huggingface/download/\(variant)/\(path).metadata")
+                    for file in [moved, record] {
+                        try? fm.removeItem(at: file)
                         try? fm.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-                        try? Data("late".utf8).write(to: file)
+                        try? Data("stale".utf8).write(to: file)
                     }
                 }
                 self.lock.withLock { self.finished = true }
             }
-            return folder
+            return repo.appendingPathComponent(variant)
         }
     }
+}
+
+private final class Counter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+    func next() -> Int { lock.withLock { value += 1; return value } }
 }
 
 private final class StubBackend: LocalSpeechBackend, @unchecked Sendable {
@@ -250,21 +260,29 @@ final class LiveLocalModelLoaderTests: XCTestCase {
         whisperRepo.appendingPathComponent(".cache/huggingface/download/\(id)")
     }
 
-    private func hex<D: Sequence>(_ digest: D) -> String where D.Element == UInt8 {
+    private nonisolated static func hex<D: Sequence>(_ digest: D) -> String where D.Element == UInt8 {
         digest.map { String(format: "%02x", $0) }.joined()
     }
 
     /// A finished download: every file with the record the downloader writes,
     /// a SHA-256 etag for LFS files (weights), the git blob SHA-1 for the rest.
     private func makeIntactBundle(_ id: String) throws -> URL {
-        let folder = whisperRepo.appendingPathComponent(id)
+        try Self.writeIntactBundle(id, under: base)
+    }
+
+    /// What a finished download leaves under `root` (a `downloadBase`).
+    @discardableResult
+    private nonisolated static func writeIntactBundle(_ id: String, under root: URL) throws -> URL {
+        let fm = FileManager.default
+        let repo = root.appendingPathComponent("models/argmaxinc/whisperkit-coreml")
+        let folder = repo.appendingPathComponent(id)
         var files = ["config.json": Data("{}".utf8)]
         for name in ["MelSpectrogram", "AudioEncoder", "TextDecoder"] {
             files["\(name).mlmodelc/model.mil"] = Data("program \(name)".utf8)
             files["\(name).mlmodelc/weights/weight.bin"] = Data(repeating: 7, count: 4096)
         }
         for (path, content) in files {
-            try makeDir(folder.appendingPathComponent(path).deletingLastPathComponent())
+            try fm.createDirectory(at: folder.appendingPathComponent(path).deletingLastPathComponent(), withIntermediateDirectories: true)
             try content.write(to: folder.appendingPathComponent(path))
             let etag: String
             if path.hasSuffix(".bin") {
@@ -272,11 +290,51 @@ final class LiveLocalModelLoaderTests: XCTestCase {
             } else {
                 etag = hex(Insecure.SHA1.hash(data: Data("blob \(content.count)\0".utf8) + content))
             }
-            let record = records(id).appendingPathComponent(path + ".metadata")
-            try makeDir(record.deletingLastPathComponent())
+            let record = repo.appendingPathComponent(".cache/huggingface/download/\(id)/\(path).metadata")
+            try fm.createDirectory(at: record.deletingLastPathComponent(), withIntermediateDirectories: true)
             try Data("\(String(repeating: "a", count: 40))\n\(etag)\n1792286632.0\n".utf8).write(to: record)
         }
         return folder
+    }
+
+    /// Every regular file under `folder`, with its content.
+    private func contents(of folder: URL) throws -> [String: Data] {
+        var files: [String: Data] = [:]
+        for path in WhisperBundleIntegrity.files(in: folder) {
+            files[path] = try Data(contentsOf: folder.appendingPathComponent(path))
+        }
+        return files
+    }
+
+    // Review 7 qa r3: cancelled before HubApi registered its worker, the
+    // worker is never cancelled and finishes its file later, removing the
+    // destination first. With every attempt in the same folders, that removed
+    // the weights the next attempt of the same model had just downloaded.
+    func test_cancelled_attempt_never_touches_the_next_attempt_of_the_same_model() async throws {
+        let turbo = turboID
+        let calls = WhisperCalls(), orphan = OrphanWorker(), attempts = Counter()
+        let orphaned = orphan.download()
+        let live = loader(calls) { variant, downloadBase, onProgress in
+            guard variant == turbo else { throw URLError(.notConnectedToInternet) }
+            if attempts.next() == 1 { return try await orphaned(variant, downloadBase, onProgress) }
+            return try Self.writeIntactBundle(variant, under: downloadBase)
+        }
+        let manager = LocalModelManager(loader: live, models: LocalModelCatalog.all, persist: { _ in })
+
+        manager.bootstrap(selectedID: turboID)
+        try await waitUntil { calls.downloads > 0 }
+        manager.cancel()
+        manager.select(turboID)
+        try await waitUntil { manager.activeModel?.id == turbo }
+        let published = try contents(of: whisperRepo)
+        try await waitUntil { orphan.done }
+
+        XCTAssertEqual(try contents(of: whisperRepo), published, "the cancelled attempt changed the new one's files")
+        let damaged = await WhisperBundleIntegrity.damagedFiles(
+            in: whisperRepo.appendingPathComponent(turboID), metadataFolder: records(turboID),
+            expected: [], ignoring: [LiveLocalModelLoader.completeMarker]
+        )
+        XCTAssertEqual(damaged, [])
     }
 
     /// Polls until `condition` holds, failing instead of hanging.
@@ -287,35 +345,28 @@ final class LiveLocalModelLoaderTests: XCTestCase {
         XCTAssertTrue(condition(), "timed out")
     }
 
-    // QA F14: HubApi's downloader writes from a task of its own, which goes on
-    // after a cancelled download returned. The load only ends once it stopped,
-    // so the deletion that follows is the last word.
-    func test_cancelled_download_returns_after_the_writes_that_outlive_it() async throws {
-        let turbo = try model(turboID)
-        let folder = try makeInterruptedBundle(turboID)
-        let calls = WhisperCalls(), writer = LateWriter()
-        let cancelling = loader(calls, download: writer.download(into: folder, cache: records(turboID)))
+    private var downloads: URL { base.appendingPathComponent(".voicetype-downloads") }
 
-        let task = Task { try await cancelling.load(turbo) { _ in } }
-        while calls.downloads == 0 { await Task.yield() }
-        task.cancel()
-        _ = await task.result
-
-        XCTAssertTrue(writer.done, "returned while the downloader was still writing")
-        XCTAssertEqual(calls.loads, 0)
+    /// What a download that found every file already in `downloadBase` returns.
+    private static let foundInPlace: LiveLocalModelLoader.WhisperDownload = { variant, downloadBase, _ in
+        downloadBase.appendingPathComponent("models/argmaxinc/whisperkit-coreml/\(variant)")
     }
 
-    // QA F14: a download resumed at launch and cancelled midway stayed on disk
-    // and its row showed "Baixado".
-    func test_cancel_at_launch_of_resumed_download_removes_the_partials_written_after_it() async throws {
+    // QA F14 + review 7 qa r3: a download resumed at launch and cancelled
+    // midway stayed on disk with its row "Baixado", and the SDK's worker may go
+    // on writing after the cancel, past any quiet period.
+    func test_cancel_at_launch_of_resumed_download_removes_its_partials() async throws {
         let turbo = turboID
         let folder = try makeInterruptedBundle(turboID)
-        try makeFile(records(turboID).appendingPathComponent("TextDecoder.mlmodelc/weights/weight.bin.abc.incomplete"))
-        let calls = WhisperCalls(), writer = LateWriter()
-        let resuming = writer.download(into: folder, cache: records(turboID))
+        let earlier = downloads.appendingPathComponent("\(turboID)/earlier-launch")
+        let partial = "models/argmaxinc/whisperkit-coreml/.cache/huggingface/download/\(turboID)/TextDecoder.mlmodelc/weights/weight.bin.abc.incomplete"
+        try makeFile(earlier.appendingPathComponent(partial))
+        let calls = WhisperCalls(), orphan = OrphanWorker(), resumed = Counter()
+        let orphaned = orphan.download()
         let live = loader(calls) { variant, downloadBase, onProgress in
             guard variant == turbo else { throw URLError(.notConnectedToInternet) }
-            return try await resuming(variant, downloadBase, onProgress)
+            if FileManager.default.fileExists(atPath: downloadBase.appendingPathComponent(partial).path) { _ = resumed.next() }
+            return try await orphaned(variant, downloadBase, onProgress)
         }
         let manager = LocalModelManager(loader: live, models: LocalModelCatalog.all, persist: { _ in })
 
@@ -323,14 +374,68 @@ final class LiveLocalModelLoaderTests: XCTestCase {
         manager.bootstrap(selectedID: turboID)
         XCTAssertEqual(manager.selection.status(of: turboID), .downloading(0))
         try await waitUntil { calls.downloads > 0 }
+        XCTAssertEqual(resumed.next(), 2, "resumed the earlier launch's download")
         manager.cancel()
-        try await waitUntil { writer.done }
-        try await waitUntil { !exists(folder) && !exists(records(turboID)) }
+        try await waitUntil { orphan.done }
 
         XCTAssertFalse(exists(folder))
         XCTAssertFalse(exists(records(turboID)))
+        XCTAssertFalse(exists(earlier))
         XCTAssertEqual(manager.selection.status(of: turboID), .notDownloaded)
+        // Only what the orphaned worker wrote after the cancel, in the cancelled attempt's own folder.
+        let left = WhisperBundleIntegrity.files(in: downloads).map { $0.split(separator: "/").dropFirst(2).joined(separator: "/") }
+        XCTAssertEqual(Set(left), [
+            "models/argmaxinc/whisperkit-coreml/\(turboID)/AudioEncoder.mlmodelc/weights/weight.bin",
+            "models/argmaxinc/whisperkit-coreml/\(turboID)/config.json",
+            "models/argmaxinc/whisperkit-coreml/.cache/huggingface/download/\(turboID)/AudioEncoder.mlmodelc/weights/weight.bin.metadata",
+            "models/argmaxinc/whisperkit-coreml/.cache/huggingface/download/\(turboID)/config.json.metadata",
+        ])
         XCTAssertEqual(calls.loads, 0)
+    }
+
+    // QA F13: quitting during a download resumes it at the next launch.
+    func test_download_of_an_earlier_launch_resumes_and_moves_in_place() async throws {
+        let turbo = try model(turboID)
+        let earlier = downloads.appendingPathComponent("\(turboID)/earlier-launch")
+        let folder = try Self.writeIntactBundle(turboID, under: earlier)
+        try fm.removeItem(at: folder.appendingPathComponent("AudioEncoder.mlmodelc/weights/weight.bin"))
+        let calls = WhisperCalls()
+        let online = loader(calls) { variant, downloadBase, _ in
+            let fetched = downloadBase.appendingPathComponent("models/argmaxinc/whisperkit-coreml/\(variant)/TextDecoder.mlmodelc/weights/weight.bin")
+            guard FileManager.default.fileExists(atPath: fetched.path) else { throw URLError(.cannotOpenFile) }
+            return try Self.writeIntactBundle(variant, under: downloadBase)
+        }
+
+        _ = try await online.load(turbo) { _ in }
+
+        XCTAssertEqual(calls.loads, 1)
+        XCTAssertNotNil(online.completeBundle(turbo))
+        XCTAssertTrue(exists(whisperRepo.appendingPathComponent("\(turboID)/AudioEncoder.mlmodelc/weights/weight.bin")))
+        XCTAssertEqual(WhisperBundleIntegrity.files(in: downloads), [])
+    }
+
+    // Review 7 qa r3: a folder of this launch belongs to a cancelled attempt
+    // whose worker may still write there, so it is never resumed.
+    func test_cancelled_download_of_this_launch_is_never_resumed() async throws {
+        let turbo = try model(turboID)
+        let calls = WhisperCalls(), orphan = OrphanWorker()
+        let cancelled = loader(calls, download: orphan.download(silence: 100_000_000))
+        let task = Task { try await cancelled.load(turbo) { _ in } }
+        while calls.downloads == 0 { await Task.yield() }
+        task.cancel()
+        _ = await task.result
+        try await waitUntil { orphan.done }
+        XCTAssertFalse(WhisperBundleIntegrity.files(in: downloads).isEmpty, "the worker wrote after the cancel")
+
+        let next = loader(calls) { variant, downloadBase, _ in
+            let stale = downloadBase.appendingPathComponent("models/argmaxinc/whisperkit-coreml/\(variant)/config.json")
+            guard !FileManager.default.fileExists(atPath: stale.path) else { throw URLError(.dataNotAllowed) }
+            return try Self.writeIntactBundle(variant, under: downloadBase)
+        }
+        _ = try await next.load(turbo) { _ in }
+
+        XCTAssertNotNil(next.completeBundle(turbo))
+        XCTAssertEqual(WhisperBundleIntegrity.files(in: downloads), [])
     }
 
     /// Waits for the fake Core ML load to start, failing instead of hanging.
@@ -390,7 +495,7 @@ final class LiveLocalModelLoaderTests: XCTestCase {
         let turbo = try model(turboID)
         let folder = try makeIntactBundle(turboID)
         let calls = WhisperCalls()
-        let online = loader(calls) { _, _, _ in folder }
+        let online = loader(calls, download: Self.foundInPlace)
 
         _ = try await online.load(turbo) { _ in }
         XCTAssertEqual(calls.downloads, 1)
@@ -516,7 +621,7 @@ final class LiveLocalModelLoaderTests: XCTestCase {
         XCTAssertEqual(calls.loads, 0)
 
         // Online, the checked download writes the inventory, and later loads skip the repository.
-        let online = loader(calls) { _, _, _ in folder }
+        let online = loader(calls, download: Self.foundInPlace)
         _ = try await online.load(turbo) { _ in }
         XCTAssertNotNil(online.completeBundle(turbo))
         _ = try await offline.load(turbo) { _ in }
@@ -528,7 +633,7 @@ final class LiveLocalModelLoaderTests: XCTestCase {
         let folder = try makeIntactBundle(turboID)
         try Data().write(to: folder.appendingPathComponent("TextDecoder.mlmodelc/weights/weight.bin"))
         let calls = WhisperCalls()
-        let online = loader(calls) { _, _, _ in folder }
+        let online = loader(calls, download: Self.foundInPlace)
 
         do {
             _ = try await online.load(turbo) { _ in }
@@ -539,6 +644,8 @@ final class LiveLocalModelLoaderTests: XCTestCase {
         XCTAssertEqual(calls.downloads, 1)
         XCTAssertEqual(calls.loads, 0)
         XCTAssertNil(online.completeBundle(turbo))
+        XCTAssertFalse(exists(folder.appendingPathComponent("TextDecoder.mlmodelc/weights/weight.bin")), "dropped, to be fetched again")
+        XCTAssertTrue(exists(folder.appendingPathComponent("AudioEncoder.mlmodelc/weights/weight.bin")))
     }
 
     // QA F15/K8: what the hashes cannot catch still must not crash every

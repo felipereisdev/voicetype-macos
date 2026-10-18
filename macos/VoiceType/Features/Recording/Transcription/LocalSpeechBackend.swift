@@ -39,8 +39,11 @@ protocol LocalModelLoading {
 
 /// Every model lives under `modelsDirectory`:
 /// - Whisper: `models/argmaxinc/whisperkit-coreml/<id>` (plus `completeMarker`
-///   once its download finished), with its partial downloads in
+///   once its download finished), with the downloader's records in
 ///   `models/argmaxinc/whisperkit-coreml/.cache/huggingface/download/<id>`.
+///   Each download attempt gets a folder of its own,
+///   `.voicetype-downloads/<id>/<launch>-<uuid>/` (the same layout inside),
+///   and only a download that was not cancelled is moved in place.
 ///   Tokenizers (`models/openai/…`) are shared and never deleted.
 /// - Parakeet: `parakeet-ultra/`, partials (`*.partial`) included.
 /// - `.voicetype-loading-<id>` while Core ML loads a model, and
@@ -49,7 +52,8 @@ protocol LocalModelLoading {
 struct LiveLocalModelLoader: LocalModelLoading {
     private static let logger = Logger(subsystem: "dev.voicetype.app", category: "LiveLocalModelLoader")
 
-    /// Fetches the missing files of a Whisper model and returns its folder.
+    /// Fetches the missing files of a Whisper model into `downloadBase`, under
+    /// `models/argmaxinc/whisperkit-coreml/<variant>`.
     typealias WhisperDownload = @Sendable (
         _ variant: String, _ downloadBase: URL, _ onProgress: @escaping @Sendable (Double) -> Void
     ) async throws -> URL
@@ -64,18 +68,18 @@ struct LiveLocalModelLoader: LocalModelLoading {
     /// throw) loading that.
     static let completeMarker = ".voicetype-complete"
 
-    /// A cancelled download stops writing within milliseconds; this much
-    /// silence on disk means it stopped. The wait gives up after `writesTimeout`.
-    private nonisolated static let writesQuietPeriod: TimeInterval = 0.5
-    private nonisolated static let writesPollInterval: TimeInterval = 0.1
-    private nonisolated static let writesTimeout: TimeInterval = 10
+    /// Names this launch's download folders: a folder of an earlier launch
+    /// belongs to a process that is gone, so nothing writes there any more.
+    nonisolated static let launchID = UUID().uuidString
 
     let modelsDirectory: URL
+    private let launch: String
     private let downloadWhisper: WhisperDownload
     private let loadWhisper: WhisperLoad
 
     nonisolated init(
         modelsDirectory: URL = WhisperKitLoader.modelsDirectory,
+        launch: String = LiveLocalModelLoader.launchID,
         downloadWhisper: @escaping WhisperDownload = { variant, downloadBase, onProgress in
             try await WhisperKitLoader.download(variant: variant, downloadBase: downloadBase, onProgress: onProgress)
         },
@@ -84,20 +88,26 @@ struct LiveLocalModelLoader: LocalModelLoading {
         }
     ) {
         self.modelsDirectory = modelsDirectory
+        self.launch = launch
         self.downloadWhisper = downloadWhisper
         self.loadWhisper = loadWhisper
     }
 
-    private var whisperRepo: URL {
-        modelsDirectory.appendingPathComponent("models/argmaxinc/whisperkit-coreml", isDirectory: true)
+    private func whisperRepo(in root: URL) -> URL {
+        root.appendingPathComponent("models/argmaxinc/whisperkit-coreml", isDirectory: true)
     }
 
-    private func whisperFolder(_ id: String) -> URL {
-        whisperRepo.appendingPathComponent(id, isDirectory: true)
+    private func whisperFolder(_ id: String, in root: URL? = nil) -> URL {
+        whisperRepo(in: root ?? modelsDirectory).appendingPathComponent(id, isDirectory: true)
     }
 
-    private func whisperPartials(_ id: String) -> URL {
-        whisperRepo.appendingPathComponent(".cache/huggingface/download", isDirectory: true)
+    private func whisperPartials(_ id: String, in root: URL? = nil) -> URL {
+        whisperRepo(in: root ?? modelsDirectory).appendingPathComponent(".cache/huggingface/download", isDirectory: true)
+            .appendingPathComponent(id, isDirectory: true)
+    }
+
+    private func whisperDownloads(_ id: String) -> URL {
+        modelsDirectory.appendingPathComponent(".voicetype-downloads", isDirectory: true)
             .appendingPathComponent(id, isDirectory: true)
     }
 
@@ -147,7 +157,7 @@ struct LiveLocalModelLoader: LocalModelLoading {
         switch model.engine {
         case .whisperKit:
             if let folder = completeBundle(model) {
-                try await checkIntegrity(of: folder)
+                try await checkIntegrity(of: folder, records: whisperPartials(model.id))
                 // Offline or with the repository down, the files on disk still load.
                 do {
                     return try await guardedLoad(model) { try await loadWhisper(folder, modelsDirectory) }
@@ -157,20 +167,30 @@ struct LiveLocalModelLoader: LocalModelLoading {
                     Self.logger.error("Local load of \(model.id, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
                 }
             }
-            let folder: URL
+            let attempt = try prepareDownload(model.id)
             do {
-                folder = try await downloadWhisper(model.id, modelsDirectory) { fraction in
+                _ = try await downloadWhisper(model.id, attempt) { fraction in
                     progress(fraction >= 1 ? .preparing : .downloading(fraction))
                 }
                 // Cancelled midway, the downloader returns without throwing
                 // (`HubApi.snapshot`), so only an attempt still running has every file.
                 try Task.checkCancellation()
+                // The downloader returns the files it already had without reading them.
+                try await checkIntegrity(of: whisperFolder(model.id, in: attempt), records: whisperPartials(model.id, in: attempt))
+            } catch LocalModelLoadError.damagedFiles {
+                // The damaged files are gone from the download: in place, the
+                // next attempt fetches only those.
+                try publish(attempt, model.id)
+                throw LocalModelLoadError.damagedFiles
             } catch {
-                if Task.isCancelled { await waitForWritesToStop(model.id) }
+                // A cancelled download may still have a task of the SDK writing
+                // in `attempt` (G-037): it stays out of every other attempt.
+                try? FileManager.default.removeItem(at: attempt)
                 throw error
             }
-            // The downloader returns the files it already had without reading them.
-            try await checkIntegrity(of: folder)
+            // Never cancelled, so every task the download started has ended.
+            try publish(attempt, model.id)
+            let folder = whisperFolder(model.id)
             return try await guardedLoad(model) { try await loadWhisper(folder, modelsDirectory) }
         case .parakeet:
             let folder = parakeetFolder
@@ -196,8 +216,7 @@ struct LiveLocalModelLoader: LocalModelLoading {
     /// missing or does not match its recorded hash. The damaged files and the
     /// marker are removed, so the next download fetches just those. A bundle
     /// that passes gets (or refreshes) its marker with its inventory.
-    private func checkIntegrity(of folder: URL) async throws {
-        let records = whisperPartials(folder.lastPathComponent)
+    private func checkIntegrity(of folder: URL, records: URL) async throws {
         let marker = folder.appendingPathComponent(Self.completeMarker)
         let damaged = await WhisperBundleIntegrity.damagedFiles(
             in: folder, metadataFolder: records, expected: inventory(of: folder), ignoring: [Self.completeMarker]
@@ -218,39 +237,66 @@ struct LiveLocalModelLoader: LocalModelLoading {
         throw LocalModelLoadError.damagedFiles
     }
 
-    /// HubApi's `Downloader` writes from a task of its own, which a cancel
-    /// does not wait for: the download returns while that task still grows a
-    /// partial or moves a finished file in, recreating the folders. Returns once
-    /// the model's files have not changed for `writesQuietPeriod`, so the
-    /// deletion that follows a cancel is the last write.
-    private func waitForWritesToStop(_ id: String) async {
-        let watched = [whisperFolder(id), whisperPartials(id)]
-        // Detached: the cancelled load would cut its sleeps short.
-        await Task.detached {
-            var last = Self.snapshot(of: watched)
-            var quiet: TimeInterval = 0, waited: TimeInterval = 0
-            while quiet < Self.writesQuietPeriod, waited < Self.writesTimeout {
-                try? await Task.sleep(nanoseconds: UInt64(Self.writesPollInterval * 1_000_000_000))
-                waited += Self.writesPollInterval
-                let now = Self.snapshot(of: watched)
-                quiet = now == last ? quiet + Self.writesPollInterval : 0
-                last = now
-            }
-        }.value
+    /// A new folder for one download attempt of `id`. HubApi's `Downloader`
+    /// writes from a task of its own that a cancel neither stops nor waits for
+    /// (G-037), so attempts never share files: a cancelled one can only write
+    /// in its own folder, which nothing reads. The folder starts with the
+    /// download an earlier launch left (its process is gone, so it resumes
+    /// safely), or else with clones of the files in place, so the download
+    /// fetches only what is missing. This launch's other folders are dropped.
+    private func prepareDownload(_ id: String) throws -> URL {
+        let fm = FileManager.default
+        let root = whisperDownloads(id)
+        let attempt = root.appendingPathComponent("\(launch)-\(UUID().uuidString)", isDirectory: true)
+        let leftovers = (try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
+        let resumed = leftovers
+            .filter { !$0.lastPathComponent.hasPrefix(launch + "-") }
+            .map { (folder: $0, bytes: Self.bytes(in: $0)) }
+            .filter { $0.bytes > 0 }
+            .max { $0.bytes < $1.bytes }?.folder
+        for leftover in leftovers where leftover != resumed {
+            try? fm.removeItem(at: leftover)
+        }
+        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+        if let resumed {
+            try fm.moveItem(at: resumed, to: attempt)
+            return attempt
+        }
+        try fm.createDirectory(at: attempt, withIntermediateDirectories: true)
+        for (from, to) in [(whisperFolder(id), whisperFolder(id, in: attempt)), (whisperPartials(id), whisperPartials(id, in: attempt))]
+        where fm.fileExists(atPath: from.path) {
+            try fm.createDirectory(at: to.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try fm.copyItem(at: from, to: to)
+        }
+        return attempt
     }
 
-    /// Size and modification date of every entry under `folders`, folders included.
-    private nonisolated static func snapshot(of folders: [URL]) -> [String: String] {
-        let keys: [URLResourceKey] = [.fileSizeKey, .contentModificationDateKey]
-        var entries: [String: String] = [:]
-        for folder in folders {
-            guard let items = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: keys) else { continue }
-            for case let item as URL in items {
-                let values = try? item.resourceValues(forKeys: Set(keys))
-                entries[item.path] = "\(values?.fileSize ?? -1) \(values?.contentModificationDate?.timeIntervalSince1970 ?? 0)"
-            }
+    /// Moves a download that was not cancelled in place of the model's files.
+    /// The records go first and the folder, with its marker, last: a launch
+    /// that dies in between finds the model incomplete and resumes from the
+    /// download folder, which still holds the files.
+    private func publish(_ attempt: URL, _ id: String) throws {
+        let fm = FileManager.default
+        let folder = whisperFolder(id), records = whisperPartials(id)
+        try? fm.removeItem(at: records)
+        try? fm.removeItem(at: folder)
+        let downloadedRecords = whisperPartials(id, in: attempt)
+        if fm.fileExists(atPath: downloadedRecords.path) {
+            try fm.createDirectory(at: records.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try fm.moveItem(at: downloadedRecords, to: records)
         }
-        return entries
+        try fm.createDirectory(at: folder.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try fm.moveItem(at: whisperFolder(id, in: attempt), to: folder)
+        try? fm.removeItem(at: attempt)
+    }
+
+    private nonisolated static func bytes(in folder: URL) -> Int {
+        guard let items = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: [.fileSizeKey]) else { return 0 }
+        var total = 0
+        for case let item as URL in items {
+            total += (try? item.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+        }
+        return total
     }
 
     /// Runs a Core ML load with a sentinel on disk, so that if the app dies in
@@ -290,7 +336,7 @@ struct LiveLocalModelLoader: LocalModelLoading {
     func deleteFiles(_ model: LocalModel) {
         let targets: [URL]
         switch model.engine {
-        case .whisperKit: targets = [whisperFolder(model.id), whisperPartials(model.id)]
+        case .whisperKit: targets = [whisperFolder(model.id), whisperPartials(model.id), whisperDownloads(model.id)]
         case .parakeet: targets = [parakeetFolder]
         }
         for url in targets + [crashRecord(model.id)] {
