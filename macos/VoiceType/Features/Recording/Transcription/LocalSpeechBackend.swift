@@ -64,6 +64,12 @@ struct LiveLocalModelLoader: LocalModelLoading {
     /// throw) loading that.
     static let completeMarker = ".voicetype-complete"
 
+    /// A cancelled download stops writing within milliseconds; this much
+    /// silence on disk means it stopped. The wait gives up after `writesTimeout`.
+    private nonisolated static let writesQuietPeriod: TimeInterval = 0.5
+    private nonisolated static let writesPollInterval: TimeInterval = 0.1
+    private nonisolated static let writesTimeout: TimeInterval = 10
+
     let modelsDirectory: URL
     private let downloadWhisper: WhisperDownload
     private let loadWhisper: WhisperLoad
@@ -107,13 +113,14 @@ struct LiveLocalModelLoader: LocalModelLoading {
         modelsDirectory.appendingPathComponent(".voicetype-crashed-\(id)")
     }
 
+    /// A Whisper model is downloaded once it has its completion marker (even
+    /// an empty one, from an earlier build): an interrupted download has every
+    /// folder too, and counting it would make Cancel keep its partial files.
     func isDownloaded(_ model: LocalModel) -> Bool {
         switch model.engine {
         case .whisperKit:
-            let folder = whisperFolder(model.id)
-            return ["AudioEncoder.mlmodelc", "TextDecoder.mlmodelc"].allSatisfy {
-                FileManager.default.fileExists(atPath: folder.appendingPathComponent($0).path)
-            }
+            let marker = whisperFolder(model.id).appendingPathComponent(Self.completeMarker)
+            return FileManager.default.fileExists(atPath: marker.path)
         case .parakeet:
             return AsrModels.modelsExist(at: parakeetFolder, version: .ultra)
         }
@@ -150,12 +157,18 @@ struct LiveLocalModelLoader: LocalModelLoading {
                     Self.logger.error("Local load of \(model.id, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
                 }
             }
-            let folder = try await downloadWhisper(model.id, modelsDirectory) { fraction in
-                progress(fraction >= 1 ? .preparing : .downloading(fraction))
+            let folder: URL
+            do {
+                folder = try await downloadWhisper(model.id, modelsDirectory) { fraction in
+                    progress(fraction >= 1 ? .preparing : .downloading(fraction))
+                }
+                // Cancelled midway, the downloader returns without throwing
+                // (`HubApi.snapshot`), so only an attempt still running has every file.
+                try Task.checkCancellation()
+            } catch {
+                if Task.isCancelled { await waitForWritesToStop(model.id) }
+                throw error
             }
-            // Cancelled midway, the downloader returns without throwing
-            // (`HubApi.snapshot`), so only an attempt still running has every file.
-            try Task.checkCancellation()
             // The downloader returns the files it already had without reading them.
             try await checkIntegrity(of: folder)
             return try await guardedLoad(model) { try await loadWhisper(folder, modelsDirectory) }
@@ -203,6 +216,41 @@ struct LiveLocalModelLoader: LocalModelLoading {
             try? fm.removeItem(at: records.appendingPathComponent(path + ".metadata"))
         }
         throw LocalModelLoadError.damagedFiles
+    }
+
+    /// HubApi's `Downloader` writes from a task of its own, which a cancel
+    /// does not wait for: the download returns while that task still grows a
+    /// partial or moves a finished file in, recreating the folders. Returns once
+    /// the model's files have not changed for `writesQuietPeriod`, so the
+    /// deletion that follows a cancel is the last write.
+    private func waitForWritesToStop(_ id: String) async {
+        let watched = [whisperFolder(id), whisperPartials(id)]
+        // Detached: the cancelled load would cut its sleeps short.
+        await Task.detached {
+            var last = Self.snapshot(of: watched)
+            var quiet: TimeInterval = 0, waited: TimeInterval = 0
+            while quiet < Self.writesQuietPeriod, waited < Self.writesTimeout {
+                try? await Task.sleep(nanoseconds: UInt64(Self.writesPollInterval * 1_000_000_000))
+                waited += Self.writesPollInterval
+                let now = Self.snapshot(of: watched)
+                quiet = now == last ? quiet + Self.writesPollInterval : 0
+                last = now
+            }
+        }.value
+    }
+
+    /// Size and modification date of every entry under `folders`, folders included.
+    private nonisolated static func snapshot(of folders: [URL]) -> [String: String] {
+        let keys: [URLResourceKey] = [.fileSizeKey, .contentModificationDateKey]
+        var entries: [String: String] = [:]
+        for folder in folders {
+            guard let items = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: keys) else { continue }
+            for case let item as URL in items {
+                let values = try? item.resourceValues(forKeys: Set(keys))
+                entries[item.path] = "\(values?.fileSize ?? -1) \(values?.contentModificationDate?.timeIntervalSince1970 ?? 0)"
+            }
+        }
+        return entries
     }
 
     /// Runs a Core ML load with a sentinel on disk, so that if the app dies in

@@ -53,6 +53,35 @@ private final class Gate: @unchecked Sendable {
     }
 }
 
+/// A Whisper download that behaves like HubApi's at cancellation: it returns at
+/// once, while the downloader's own task goes on moving finished files into the
+/// bundle (which recreates its folders) and growing a partial for a moment.
+private final class LateWriter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var finished = false
+    var done: Bool { lock.withLock { finished } }
+
+    func download(into folder: URL, cache: URL) -> LiveLocalModelLoader.WhisperDownload {
+        { _, _, _ in
+            while !Task.isCancelled { try? await Task.sleep(nanoseconds: 1_000_000) }
+            Task.detached {
+                let fm = FileManager.default
+                for index in 0..<3 {
+                    try? await Task.sleep(nanoseconds: 150_000_000)
+                    let moved = folder.appendingPathComponent("Late\(index).mlmodelc/weights/weight.bin")
+                    let partial = cache.appendingPathComponent("Late\(index).mlmodelc/weights/weight.bin.abc.incomplete")
+                    for file in [moved, partial] {
+                        try? fm.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+                        try? Data("late".utf8).write(to: file)
+                    }
+                }
+                self.lock.withLock { self.finished = true }
+            }
+            return folder
+        }
+    }
+}
+
 private final class StubBackend: LocalSpeechBackend, @unchecked Sendable {
     func transcribe(samples: [Float], lang: String, vocabulary: String?) async throws -> String { "" }
 }
@@ -129,15 +158,21 @@ final class LiveLocalModelLoaderTests: XCTestCase {
         XCTAssertTrue(exists(whisperRepo.appendingPathComponent(smallID)))
     }
 
-    func test_isDownloaded_whisper_requires_encoder_and_decoder() throws {
+    // QA F14: an interrupted download has every folder, so the folders made
+    // a partial bundle look downloaded, and Cancel kept it.
+    func test_isDownloaded_whisper_requires_completion_marker() throws {
         let loader = LiveLocalModelLoader(modelsDirectory: base)
         let turbo = try model(turboID)
         let folder = whisperRepo.appendingPathComponent(turboID)
 
         XCTAssertFalse(loader.isDownloaded(turbo))
         try makeDir(folder.appendingPathComponent("AudioEncoder.mlmodelc"))
-        XCTAssertFalse(loader.isDownloaded(turbo))
         try makeDir(folder.appendingPathComponent("TextDecoder.mlmodelc"))
+        XCTAssertFalse(loader.isDownloaded(turbo))
+        // An earlier build left the marker empty, after a finished download too.
+        XCTAssertTrue(fm.createFile(atPath: folder.appendingPathComponent(LiveLocalModelLoader.completeMarker).path, contents: nil))
+        XCTAssertTrue(loader.isDownloaded(turbo))
+        try markComplete(folder)
         XCTAssertTrue(loader.isDownloaded(turbo))
         XCTAssertFalse(loader.isDownloaded(try model(smallID)))
     }
@@ -165,7 +200,7 @@ final class LiveLocalModelLoaderTests: XCTestCase {
         let turbo = try model(turboID)
         let folder = try makeInterruptedBundle(turboID)
 
-        XCTAssertTrue(loader.isDownloaded(turbo))
+        XCTAssertFalse(loader.isDownloaded(turbo))
         XCTAssertNil(loader.completeBundle(turbo))
 
         try markComplete(folder)
@@ -244,6 +279,60 @@ final class LiveLocalModelLoaderTests: XCTestCase {
         return folder
     }
 
+    /// Polls until `condition` holds, failing instead of hanging.
+    private func waitUntil(_ condition: () -> Bool) async throws {
+        for _ in 0..<1_000 where !condition() {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertTrue(condition(), "timed out")
+    }
+
+    // QA F14: HubApi's downloader writes from a task of its own, which goes on
+    // after a cancelled download returned. The load only ends once it stopped,
+    // so the deletion that follows is the last word.
+    func test_cancelled_download_returns_after_the_writes_that_outlive_it() async throws {
+        let turbo = try model(turboID)
+        let folder = try makeInterruptedBundle(turboID)
+        let calls = WhisperCalls(), writer = LateWriter()
+        let cancelling = loader(calls, download: writer.download(into: folder, cache: records(turboID)))
+
+        let task = Task { try await cancelling.load(turbo) { _ in } }
+        while calls.downloads == 0 { await Task.yield() }
+        task.cancel()
+        _ = await task.result
+
+        XCTAssertTrue(writer.done, "returned while the downloader was still writing")
+        XCTAssertEqual(calls.loads, 0)
+    }
+
+    // QA F14: a download resumed at launch and cancelled midway stayed on disk
+    // and its row showed "Baixado".
+    func test_cancel_at_launch_of_resumed_download_removes_the_partials_written_after_it() async throws {
+        let turbo = turboID
+        let folder = try makeInterruptedBundle(turboID)
+        try makeFile(records(turboID).appendingPathComponent("TextDecoder.mlmodelc/weights/weight.bin.abc.incomplete"))
+        let calls = WhisperCalls(), writer = LateWriter()
+        let resuming = writer.download(into: folder, cache: records(turboID))
+        let live = loader(calls) { variant, downloadBase, onProgress in
+            guard variant == turbo else { throw URLError(.notConnectedToInternet) }
+            return try await resuming(variant, downloadBase, onProgress)
+        }
+        let manager = LocalModelManager(loader: live, models: LocalModelCatalog.all, persist: { _ in })
+
+        XCTAssertEqual(manager.selection.status(of: turboID), .notDownloaded)
+        manager.bootstrap(selectedID: turboID)
+        XCTAssertEqual(manager.selection.status(of: turboID), .downloading(0))
+        try await waitUntil { calls.downloads > 0 }
+        manager.cancel()
+        try await waitUntil { writer.done }
+        try await waitUntil { !exists(folder) && !exists(records(turboID)) }
+
+        XCTAssertFalse(exists(folder))
+        XCTAssertFalse(exists(records(turboID)))
+        XCTAssertEqual(manager.selection.status(of: turboID), .notDownloaded)
+        XCTAssertEqual(calls.loads, 0)
+    }
+
     /// Waits for the fake Core ML load to start, failing instead of hanging.
     private func waitUntilLoading(_ calls: WhisperCalls) async throws {
         for _ in 0..<2_000 where calls.loads == 0 {
@@ -282,7 +371,7 @@ final class LiveLocalModelLoaderTests: XCTestCase {
         XCTAssertNil(cancelling.completeBundle(turbo))
         XCTAssertFalse(exists(folder.appendingPathComponent(LiveLocalModelLoader.completeMarker)))
         XCTAssertFalse(exists(folder.appendingPathComponent("AudioEncoder.mlmodelc/weights/weight.bin")))
-        XCTAssertTrue(cancelling.isDownloaded(turbo))
+        XCTAssertFalse(cancelling.isDownloaded(turbo))
 
         // The next attempt goes through the download (the repair) and, offline,
         // fails without entering Core ML.
@@ -361,7 +450,7 @@ final class LiveLocalModelLoaderTests: XCTestCase {
             XCTAssertFalse(exists(records(turboID).appendingPathComponent(encoder + ".metadata")))
             XCTAssertNil(offline.completeBundle(turbo))
             XCTAssertTrue(exists(folder.appendingPathComponent("TextDecoder.mlmodelc/weights/weight.bin")))
-            XCTAssertTrue(offline.isDownloaded(turbo))
+            XCTAssertFalse(offline.isDownloaded(turbo), "without its marker until a download repairs it")
             try fm.removeItem(at: whisperRepo)
         }
     }
