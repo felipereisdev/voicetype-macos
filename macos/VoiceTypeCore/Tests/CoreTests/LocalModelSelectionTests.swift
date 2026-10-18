@@ -213,6 +213,44 @@ struct LocalModelSelectionTests {
         #expect(sel.status(of: turbo) == .ready)
     }
 
+    // Review 7 qa r1: the automatic fallback after a failed or cancelled boot
+    // attempt must not load the default either when it is the one that crashed.
+    @Test func bootFallbackAfterFailureSkipsCrashedDefault() {
+        var sel = LocalModelSelection(modelIDs: ids, downloaded: [small, turbo])
+        sel.recordCrash(small, message: "caiu")
+        let t = attempt(in: sel.boot(selectedID: turbo))!
+        #expect(t.modelID == turbo)
+        #expect(sel.loadFailed(t, message: "offline") == [.persistSelection(small)])
+        #expect(sel.pending == nil)
+        #expect(sel.status(of: small) == .failed("caiu"))
+    }
+
+    @Test func bootFallbackAfterCancelSkipsCrashedDefault() {
+        var sel = LocalModelSelection(modelIDs: ids, downloaded: [small, turbo])
+        sel.recordCrash(small, message: "caiu")
+        let t = attempt(in: sel.boot(selectedID: turbo))!
+        #expect(sel.cancel() == [.cancelLoad(t), .persistSelection(small)])
+        #expect(sel.pending == nil)
+        #expect(sel.status(of: small) == .failed("caiu"))
+    }
+
+    @Test func pickingCrashedDefaultAuthorizesItsFallbackAgain() {
+        var sel = LocalModelSelection(modelIDs: ids, downloaded: [small, turbo])
+        sel.recordCrash(small, message: "caiu")
+        let t = attempt(in: sel.boot(selectedID: turbo))!
+        _ = sel.loadFailed(t, message: "offline")
+
+        let s = attempt(in: sel.select(small))!
+        #expect(s.modelID == small)
+        #expect(sel.status(of: small) == .preparing)
+        // Picked explicitly and failing by an error (not a crash): it may serve
+        // as the fallback again.
+        _ = sel.loadFailed(s, message: "boom")
+        let t2 = attempt(in: sel.select(turbo))!
+        let effects = sel.loadFailed(t2, message: "offline")
+        #expect(attempt(in: effects)?.modelID == small)
+    }
+
     @Test func recordCrashIgnoresUnknownID() {
         var sel = LocalModelSelection(modelIDs: ids, downloaded: [small])
         sel.recordCrash("nope", message: "caiu")

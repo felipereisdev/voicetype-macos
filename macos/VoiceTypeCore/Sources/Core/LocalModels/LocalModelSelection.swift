@@ -30,8 +30,8 @@ public struct LocalModelSelection: Equatable, Sendable {
     private var downloaded: Set<String>
     private var progress: [String: LocalModelStatus] = [:]
     private var failures: [String: String] = [:]
-    // Models whose load was under way when the app last died; boot never
-    // loads them on its own.
+    // Models whose load was under way when the app last died; no automatic
+    // fallback loads them, only picking them again does.
     private var crashed: Set<String> = []
     // Whether the pending model's files were complete before its attempt started;
     // a cancelled download only deletes what it fetched itself.
@@ -80,6 +80,7 @@ public struct LocalModelSelection: Equatable, Sendable {
             return cancel()
         }
         var effects = endPendingByCancel()
+        crashed.remove(id)
         effects += [.load(startLoad(id)), .persistSelection(id)]
         return effects
     }
@@ -150,11 +151,13 @@ public struct LocalModelSelection: Equatable, Sendable {
     }
 
     // After the pending attempt ends without success: go back to the active model, or,
-    // at boot, load the default — unless the attempt that ended was the default itself.
+    // at boot, load the default — unless the attempt that ended was the default itself,
+    // or the default is the one that crashed the app (its failure stays on its row).
     private mutating func revert(after id: String) -> [LocalModelEffect] {
         if let active { return [.persistSelection(active)] }
         let defaultID = LocalModelCatalog.defaultID
         guard id != defaultID else { return [] }
+        guard !crashed.contains(defaultID) else { return [.persistSelection(defaultID)] }
         return [.persistSelection(defaultID), .load(startLoad(defaultID))]
     }
 }
