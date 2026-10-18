@@ -57,9 +57,11 @@ struct LiveLocalModelLoader: LocalModelLoading {
     typealias WhisperLoad = @Sendable (_ modelFolder: URL, _ tokenizerFolder: URL) async throws -> any LocalSpeechBackend
 
     /// Written in a Whisper model's folder once a download that was not
-    /// cancelled returned, i.e. every file is on disk. The folders alone prove
-    /// nothing: an interrupted download leaves them without weights, and Core ML
-    /// crashes (it does not throw) loading that.
+    /// cancelled returned and every file matched its record, i.e. every file is
+    /// on disk. It lists those files, one path per line: the inventory later
+    /// loads check against. The folders alone prove nothing: an interrupted
+    /// download leaves them without weights, and Core ML crashes (it does not
+    /// throw) loading that.
     static let completeMarker = ".voicetype-complete"
 
     let modelsDirectory: URL
@@ -118,12 +120,18 @@ struct LiveLocalModelLoader: LocalModelLoading {
     }
 
     /// The folder of a Whisper model whose download finished, which can be
-    /// loaded without asking the repository anything; nil otherwise.
+    /// loaded without asking the repository anything; nil otherwise. A marker
+    /// without an inventory (written by an earlier build) does not count.
     func completeBundle(_ model: LocalModel) -> URL? {
         guard model.engine == .whisperKit else { return nil }
         let folder = whisperFolder(model.id)
+        return inventory(of: folder).isEmpty ? nil : folder
+    }
+
+    private func inventory(of folder: URL) -> Set<String> {
         let marker = folder.appendingPathComponent(Self.completeMarker)
-        return FileManager.default.fileExists(atPath: marker.path) ? folder : nil
+        guard let text = try? String(contentsOf: marker, encoding: .utf8) else { return [] }
+        return Set(text.split(separator: "\n").map(String.init))
     }
 
     func load(
@@ -150,7 +158,6 @@ struct LiveLocalModelLoader: LocalModelLoading {
             try Task.checkCancellation()
             // The downloader returns the files it already had without reading them.
             try await checkIntegrity(of: folder)
-            FileManager.default.createFile(atPath: folder.appendingPathComponent(Self.completeMarker).path, contents: nil)
             return try await guardedLoad(model) { try await loadWhisper(folder, modelsDirectory) }
         case .parakeet:
             let folder = parakeetFolder
@@ -172,19 +179,25 @@ struct LiveLocalModelLoader: LocalModelLoading {
         }
     }
 
-    /// Throws `damagedFiles`, before Core ML ever sees them, when a file does not
-    /// match its recorded hash. The damaged files and the marker are removed,
-    /// so the next download fetches just those.
+    /// Throws `damagedFiles`, before Core ML ever sees them, when a file is
+    /// missing or does not match its recorded hash. The damaged files and the
+    /// marker are removed, so the next download fetches just those. A bundle
+    /// that passes gets (or refreshes) its marker with its inventory.
     private func checkIntegrity(of folder: URL) async throws {
         let records = whisperPartials(folder.lastPathComponent)
+        let marker = folder.appendingPathComponent(Self.completeMarker)
         let damaged = await WhisperBundleIntegrity.damagedFiles(
-            in: folder, metadataFolder: records, ignoring: [Self.completeMarker]
+            in: folder, metadataFolder: records, expected: inventory(of: folder), ignoring: [Self.completeMarker]
         )
         try Task.checkCancellation()
-        guard !damaged.isEmpty else { return }
+        guard !damaged.isEmpty else {
+            let files = WhisperBundleIntegrity.files(in: folder).filter { $0 != Self.completeMarker }.sorted()
+            try? files.joined(separator: "\n").write(to: marker, atomically: true, encoding: .utf8)
+            return
+        }
         Self.logger.error("Damaged files in \(folder.lastPathComponent, privacy: .public): \(damaged.joined(separator: ", "), privacy: .public)")
         let fm = FileManager.default
-        try? fm.removeItem(at: folder.appendingPathComponent(Self.completeMarker))
+        try? fm.removeItem(at: marker)
         for path in damaged {
             try? fm.removeItem(at: folder.appendingPathComponent(path))
             try? fm.removeItem(at: records.appendingPathComponent(path + ".metadata"))

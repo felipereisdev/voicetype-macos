@@ -7,31 +7,41 @@ import CryptoKit
 /// it does not throw, on truncated or corrupted weights, so every load checks
 /// the bundle first. Hashing a 632 MB model takes about 0.3 s.
 enum WhisperBundleIntegrity {
-    /// Paths, relative to `folder`, of the files whose content does not match
-    /// their record, or that have none. Files named in `ignoring` are skipped.
-    static func damagedFiles(in folder: URL, metadataFolder: URL, ignoring: Set<String>) async -> [String] {
-        let base = folder.resolvingSymlinksInPath().pathComponents
+    /// Paths, relative to `folder`, of the files that are missing or whose
+    /// content does not match their record (or that have none). A file is
+    /// expected when it is on disk, has a record (records outlive a deleted
+    /// file), or is listed in `expected` (the inventory of the completion
+    /// marker, which outlives a file deleted with its record). Files named in
+    /// `ignoring` are skipped.
+    static func damagedFiles(
+        in folder: URL, metadataFolder: URL, expected: Set<String>, ignoring: Set<String>
+    ) async -> [String] {
+        let present = Set(files(in: folder))
+        let recorded = Set(files(in: metadataFolder).compactMap { path in
+            path.hasSuffix(".metadata") ? String(path.dropLast(".metadata".count)) : nil
+        })
         var damaged: [String] = []
-        for file in regularFiles(in: folder) {
+        for relative in present.union(recorded).union(expected).subtracting(ignoring).sorted() {
             guard !Task.isCancelled else { break }
-            let relative = file.resolvingSymlinksInPath().pathComponents.dropFirst(base.count).joined(separator: "/")
-            guard !ignoring.contains(relative) else { continue }
+            let file = folder.appendingPathComponent(relative)
             let record = metadataFolder.appendingPathComponent(relative + ".metadata")
-            if etag(in: record).map({ matches(file, etag: $0) }) != true {
+            if !present.contains(relative) || etag(in: record).map({ matches(file, etag: $0) }) != true {
                 damaged.append(relative)
             }
         }
         return damaged
     }
 
-    private static func regularFiles(in folder: URL) -> [URL] {
+    /// Paths, relative to `folder`, of its regular files.
+    static func files(in folder: URL) -> [String] {
+        let base = folder.resolvingSymlinksInPath().pathComponents
         guard let files = FileManager.default.enumerator(
             at: folder, includingPropertiesForKeys: [.isRegularFileKey]
         ) else { return [] }
-        var regular: [URL] = []
+        var regular: [String] = []
         for case let file as URL in files
         where (try? file.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true {
-            regular.append(file)
+            regular.append(file.resolvingSymlinksInPath().pathComponents.dropFirst(base.count).joined(separator: "/"))
         }
         return regular
     }

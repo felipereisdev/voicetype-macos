@@ -168,7 +168,7 @@ final class LiveLocalModelLoaderTests: XCTestCase {
         XCTAssertTrue(loader.isDownloaded(turbo))
         XCTAssertNil(loader.completeBundle(turbo))
 
-        try makeFile(folder.appendingPathComponent(LiveLocalModelLoader.completeMarker))
+        try markComplete(folder)
         XCTAssertEqual(loader.completeBundle(turbo)?.standardizedFileURL, folder.standardizedFileURL)
         XCTAssertNil(loader.completeBundle(try model(smallID)))
     }
@@ -252,8 +252,11 @@ final class LiveLocalModelLoaderTests: XCTestCase {
         try XCTSkipUnless(calls.loads > 0, "the load never reached Core ML")
     }
 
+    /// The marker a finished download leaves: the inventory of the bundle.
     private func markComplete(_ folder: URL) throws {
-        try makeFile(folder.appendingPathComponent(LiveLocalModelLoader.completeMarker))
+        let files = WhisperBundleIntegrity.files(in: folder).filter { $0 != LiveLocalModelLoader.completeMarker }
+        try files.sorted().joined(separator: "\n")
+            .write(to: folder.appendingPathComponent(LiveLocalModelLoader.completeMarker), atomically: true, encoding: .utf8)
     }
 
     // Regression (review 6 r3): cancelled midway, the downloader returns the
@@ -315,13 +318,13 @@ final class LiveLocalModelLoaderTests: XCTestCase {
         let folder = try makeIntactBundle(turboID)
         try markComplete(folder)
         let clean = await WhisperBundleIntegrity.damagedFiles(
-            in: folder, metadataFolder: records(turboID), ignoring: [LiveLocalModelLoader.completeMarker]
+            in: folder, metadataFolder: records(turboID), expected: [], ignoring: [LiveLocalModelLoader.completeMarker]
         )
         XCTAssertEqual(clean, [])
 
         try makeFile(folder.appendingPathComponent("stray.bin"))
         let flagged = await WhisperBundleIntegrity.damagedFiles(
-            in: folder, metadataFolder: records(turboID), ignoring: [LiveLocalModelLoader.completeMarker]
+            in: folder, metadataFolder: records(turboID), expected: [], ignoring: [LiveLocalModelLoader.completeMarker]
         )
         XCTAssertEqual(flagged, ["stray.bin"])
     }
@@ -361,6 +364,74 @@ final class LiveLocalModelLoaderTests: XCTestCase {
             XCTAssertTrue(offline.isDownloaded(turbo))
             try fm.removeItem(at: whisperRepo)
         }
+    }
+
+    func test_integrity_flags_files_missing_from_records_or_inventory() async throws {
+        let folder = try makeIntactBundle(turboID)
+        let encoder = "AudioEncoder.mlmodelc/weights/weight.bin"
+        try fm.removeItem(at: folder.appendingPathComponent(encoder))
+        let byRecord = await WhisperBundleIntegrity.damagedFiles(
+            in: folder, metadataFolder: records(turboID), expected: [], ignoring: []
+        )
+        XCTAssertEqual(byRecord, [encoder])
+
+        try fm.removeItem(at: records(turboID).appendingPathComponent(encoder + ".metadata"))
+        let byInventory = await WhisperBundleIntegrity.damagedFiles(
+            in: folder, metadataFolder: records(turboID), expected: [encoder], ignoring: []
+        )
+        XCTAssertEqual(byInventory, [encoder])
+    }
+
+    // Review 7 qa r1: a file that is gone was never checked, so a complete
+    // bundle missing a weight still reached Core ML, which crashes.
+    func test_missing_weight_of_complete_bundle_fails_before_core_ml() async throws {
+        let turbo = try model(turboID)
+        let encoder = "AudioEncoder.mlmodelc/weights/weight.bin"
+        for alsoDropRecord in [false, true] {
+            let folder = try makeIntactBundle(turboID)
+            try markComplete(folder)
+            try fm.removeItem(at: folder.appendingPathComponent(encoder))
+            if alsoDropRecord {
+                try fm.removeItem(at: records(turboID).appendingPathComponent(encoder + ".metadata"))
+            }
+            let calls = WhisperCalls()
+            let offline = loader(calls) { _, _, _ in throw URLError(.notConnectedToInternet) }
+
+            do {
+                _ = try await offline.load(turbo) { _ in }
+                XCTFail("a bundle missing a weight cannot load")
+            } catch {
+                XCTAssertEqual(error as? LocalModelLoadError, .damagedFiles)
+            }
+            XCTAssertEqual(calls.loads, 0, "never handed to Core ML")
+            XCTAssertEqual(calls.downloads, 0)
+            XCTAssertNil(offline.completeBundle(turbo))
+            try fm.removeItem(at: whisperRepo)
+        }
+    }
+
+    func test_marker_without_inventory_is_not_a_complete_bundle() async throws {
+        let turbo = try model(turboID)
+        let folder = try makeIntactBundle(turboID)
+        XCTAssertTrue(fm.createFile(atPath: folder.appendingPathComponent(LiveLocalModelLoader.completeMarker).path, contents: nil))
+        let calls = WhisperCalls()
+        let offline = loader(calls) { _, _, _ in throw URLError(.notConnectedToInternet) }
+
+        XCTAssertNil(offline.completeBundle(turbo))
+        do {
+            _ = try await offline.load(turbo) { _ in }
+            XCTFail("an offline load without inventory cannot succeed")
+        } catch {
+            XCTAssertEqual((error as? URLError)?.code, .notConnectedToInternet, "goes through the download")
+        }
+        XCTAssertEqual(calls.loads, 0)
+
+        // Online, the checked download writes the inventory, and later loads skip the repository.
+        let online = loader(calls) { _, _, _ in folder }
+        _ = try await online.load(turbo) { _ in }
+        XCTAssertNotNil(online.completeBundle(turbo))
+        _ = try await offline.load(turbo) { _ in }
+        XCTAssertEqual(calls.loads, 2)
     }
 
     func test_download_that_kept_a_damaged_file_is_not_marked_complete() async throws {
