@@ -87,8 +87,8 @@ final class LocalModelManager {
         defer { loadTasks[attempt] = nil }
         guard !Task.isCancelled, selection.pendingAttempt == attempt else { return }
         do {
-            let backend = try await loader.load(model) { update in
-                Task { @MainActor [weak self] in self?.progress(attempt, update) }
+            let backend = try await loader.load(model) { [weak self] update in
+                Task { @MainActor in self?.progress(attempt, update) }
             }
             finish(attempt, backend)
         } catch is CancellationError {

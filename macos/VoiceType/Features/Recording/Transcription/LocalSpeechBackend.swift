@@ -53,7 +53,9 @@ struct LiveLocalModelLoader: LocalModelLoading {
 
     nonisolated init(
         modelsDirectory: URL = WhisperKitLoader.modelsDirectory,
-        downloadWhisper: @escaping WhisperDownload = WhisperKitLoader.download(variant:downloadBase:onProgress:),
+        downloadWhisper: @escaping WhisperDownload = { variant, downloadBase, onProgress in
+            try await WhisperKitLoader.download(variant: variant, downloadBase: downloadBase, onProgress: onProgress)
+        },
         loadWhisper: @escaping WhisperLoad = { folder, tokenizerFolder in
             WhisperKitBackend(kit: try await WhisperKitLoader.loadKit(modelFolder: folder, tokenizerFolder: tokenizerFolder))
         }
