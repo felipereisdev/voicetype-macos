@@ -65,9 +65,11 @@ final class RecordingOrchestrator {
         if #available(macOS 26, *) {
             let localRefiner = LocalRefiner(options: refineOptions)
             let localTranslator = LocalTranslator()
+            let appleTranslator = AppleTranslationTranslator()
             let aiAvailable = AIAvailability().isAvailable   // captured once per take (MainActor read here)
             let localRefine: Pipeline.RefineFn = { try await localRefiner.refine(text: $0) }
             let localTranslate: Pipeline.TranslateFn = { try await localTranslator.translate(text: $0, target: $1) }
+            let appleTranslate: Pipeline.TranslateFn = { try await appleTranslator.translate(text: $0, target: $1) }
 
             switch refineEngine {
             case "groq":  refineFn = groqRefine
@@ -75,14 +77,21 @@ final class RecordingOrchestrator {
             default:      refineFn = FallbackRefine.make(primary: localRefine, fallback: groqRefine,
                                                          isPrimaryAvailable: { aiAvailable }, timeoutSeconds: 5)
             }
-            switch translateEngine {
-            case "groq":  translateFn = groqTranslate
-            case "local": translateFn = localTranslate
-            default:      translateFn = FallbackTranslate.make(primary: localTranslate, fallback: groqTranslate,
-                                                               isPrimaryAvailable: { aiAvailable }, timeoutSeconds: 5)
+            // Without Apple Intelligence the on-device translator is the Translation
+            // framework, which throws on a pair that isn't installed (→ next step).
+            let fns = TranslatePlan.steps(engine: translateEngine, appleIntelligence: aiAvailable).map { step -> Pipeline.TranslateFn in
+                switch step {
+                case .appleIntelligence: return localTranslate
+                case .appleTranslation:  return appleTranslate
+                case .groq:              return groqTranslate
+                }
+            }
+            translateFn = fns.dropFirst().reduce(fns[0]) { primary, fallback in
+                FallbackTranslate.make(primary: primary, fallback: fallback,
+                                       isPrimaryAvailable: { true }, timeoutSeconds: 5)
             }
         } else {
-            // < macOS 26: no Apple Intelligence — always Groq.
+            // < macOS 26: no Apple Intelligence nor UI-less Translation session — always Groq.
             refineFn = groqRefine
             translateFn = groqTranslate
         }
