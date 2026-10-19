@@ -104,7 +104,8 @@ struct PracticeStepView: View {
     @Environment(\.controlActiveState) private var controlActiveState
     let viewModel: OnboardingViewModel
     let step: OnboardingStep
-    @FocusState private var fieldFocused: Bool
+    /// Bumped to put the keyboard in the field.
+    @State private var focusRequest = 0
 
     var body: some View {
         let config = deps.configSnapshot.config
@@ -133,15 +134,16 @@ struct PracticeStepView: View {
                         .foregroundStyle(.green)
                 }
             }
-            TextEditor(text: Binding(
-                get: { viewModel.practiceText[step, default: ""] },
-                set: { viewModel.practiceText[step] = $0 }
-            ))
-            .font(.body)
+            PracticeTextEditor(
+                text: Binding(
+                    get: { viewModel.practiceText[step, default: ""] },
+                    set: { viewModel.practiceText[step] = $0 }
+                ),
+                identifier: viewModel.fieldIdentifier(for: step),
+                focusRequest: focusRequest
+            )
             .frame(height: 110)
             .id(step)
-            .accessibilityIdentifier(viewModel.fieldIdentifier(for: step))
-            .focused($fieldFocused)
             .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.4)))
             Text(OnboardingStrings.practiceFieldHelp).font(.caption).foregroundStyle(.secondary)
         }
@@ -155,9 +157,8 @@ struct PracticeStepView: View {
         }
     }
 
-    // Next run loop: the TextEditor must be in the window before it can take focus.
     private func focusField() {
-        DispatchQueue.main.async { fieldFocused = true }
+        focusRequest += 1
     }
 
     @ViewBuilder
@@ -223,6 +224,64 @@ struct PracticeStepView: View {
 
     private func settingsButton(_ title: String, _ section: SettingsSection) -> some View {
         Button(title) { router.show(.settings(section), using: openWindow) }
+    }
+}
+
+/// The practice field: a plain `NSTextView` carrying the ticket's AXIdentifier.
+/// The `Paster` checks that identifier on the system-focused element, and
+/// SwiftUI's `TextEditor` never puts `.accessibilityIdentifier` there (its text
+/// view answers AXIdentifier with kAXErrorAttributeUnsupported).
+struct PracticeTextEditor: NSViewRepresentable {
+    @Binding var text: String
+    let identifier: String
+    /// A new value puts the keyboard in the field.
+    let focusRequest: Int
+
+    func makeCoordinator() -> Coordinator { Coordinator(text: $text) }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSTextView.scrollableTextView()
+        let textView = scrollView.documentView as! NSTextView
+        textView.isRichText = false
+        textView.allowsUndo = true
+        textView.font = .preferredFont(forTextStyle: .body)
+        textView.textContainerInset = NSSize(width: 2, height: 4)
+        // Typing, paste and AX writes all end here, so the binding follows any of them.
+        textView.textStorage?.delegate = context.coordinator
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        let textView = scrollView.documentView as! NSTextView
+        context.coordinator.text = $text
+        if textView.string != text { textView.string = text }
+        textView.setAccessibilityIdentifier(identifier)
+        if context.coordinator.focusRequest != focusRequest {
+            context.coordinator.focusRequest = focusRequest
+            // Next run loop: the view must be in the window before it can take focus.
+            DispatchQueue.main.async { textView.window?.makeFirstResponder(textView) }
+        }
+    }
+
+    @MainActor
+    final class Coordinator: NSObject, NSTextStorageDelegate {
+        var text: Binding<String>
+        var focusRequest: Int?
+
+        init(text: Binding<String>) {
+            self.text = text
+        }
+
+        nonisolated func textStorage(
+            _ textStorage: NSTextStorage, didProcessEditing editedMask: NSTextStorageEditActions,
+            range editedRange: NSRange, changeInLength delta: Int
+        ) {
+            guard editedMask.contains(.editedCharacters) else { return }
+            let string = textStorage.string
+            MainActor.assumeIsolated {
+                if text.wrappedValue != string { text.wrappedValue = string }
+            }
+        }
     }
 }
 

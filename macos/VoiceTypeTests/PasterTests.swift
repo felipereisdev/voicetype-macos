@@ -90,9 +90,12 @@ final class MockAccessibilityWriter: AccessibilityWriterProtocol, @unchecked Sen
     var systemFocusCalls = 0
     // The system's focused text element at `tryInsert` time.
     var focusAtInsert: FocusedField?
+    // `Thread.isMainThread` at each `tryInsert`/`systemFocusedField` call.
+    var calledOnMain: [Bool] = []
 
     func tryInsert(text: String, required: FocusedField?) -> Bool {
         tryInsertCalls += 1
+        calledOnMain.append(Thread.isMainThread)
         if let required, focusAtInsert != required { return false }
         lastText = text
         return tryInsertResult
@@ -100,6 +103,7 @@ final class MockAccessibilityWriter: AccessibilityWriterProtocol, @unchecked Sen
 
     func systemFocusedField() -> FocusedField? {
         defer { systemFocusCalls += 1 }
+        calledOnMain.append(Thread.isMainThread)
         guard !systemFocus.isEmpty else { return nil }
         return systemFocus[min(systemFocusCalls, systemFocus.count - 1)]
     }
@@ -582,6 +586,21 @@ final class PasterTests: XCTestCase {
         XCTAssertEqual(ax.systemFocusCalls, 2, "checked again right before Cmd+V")
         XCTAssertEqual(injector.sendCount, 1)
         XCTAssertTrue(ax.prepareFocusTargets.isEmpty)
+    }
+
+    // The required field is VoiceType's own editor: AX on it runs AppKit on
+    // the calling thread, so every check and the write go through the main one.
+    func testRequiredFieldAccessibilityRunsOnTheMainThread() async throws {
+        let pb = MockPasteboard()
+        let injector = MockEventInjector()
+        let ax = MockAccessibilityWriter()
+        ax.systemFocus = [own, own]
+        ax.focusAtInsert = own
+        ax.tryInsertResult = false
+
+        try await requiredFieldPaster(pb, injector, ax).paste(text: "olá", target: selfTarget(), requiredField: own)
+
+        XCTAssertEqual(ax.calledOnMain, [true, true, true])
     }
 
     // MARK: - lazy pasteboard fallback

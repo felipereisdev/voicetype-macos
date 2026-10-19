@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import XCTest
 import Core
 @testable import VoiceType
@@ -575,5 +576,51 @@ final class OnboardingPracticeTests: XCTestCase {
             .appendingPathComponent("VTOnboardingPractice-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("history.json")
+    }
+}
+
+/// The real Accessibility boundary, not `MockAccessibilityWriter`. The system
+/// focus (what the `Paster` checks) is the native text view's own AX element,
+/// so the identifier must be on that view; SwiftUI's `TextEditor` puts it only
+/// on a node of its own accessibility tree (an AX hit test or tree walk finds
+/// it there, the focus does not). The end-to-end check through the system
+/// focus needs a key window, which a test host does not get.
+@MainActor
+final class PracticeTextEditorAccessibilityTests: XCTestCase {
+
+    func testNativeTextElementCarriesTheTicketIdentifierAndAnAXWriteReachesTheBinding() throws {
+        var text = ""
+        let identifier = OnboardingPracticeTicket(session: UUID(), step: .dictation).fieldIdentifier
+        let editor = PracticeTextEditor(
+            text: Binding(get: { text }, set: { text = $0 }),
+            identifier: identifier,
+            focusRequest: 0
+        )
+        let window = NSWindow(contentRect: NSRect(x: 200, y: 200, width: 320, height: 110),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.level = .floating
+        window.contentView = NSHostingView(rootView: editor.frame(width: 320, height: 110))
+        window.orderFrontRegardless()
+        defer { window.close() }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        let textView = try XCTUnwrap(Self.textView(in: window.contentView))
+        XCTAssertEqual(textView.accessibilityIdentifier(), identifier)
+
+        // An AX write into the field reaches the binding the step is confirmed against.
+        let frame = window.convertToScreen(textView.convert(textView.bounds, to: nil))
+        let primaryHeight = NSScreen.screens[0].frame.maxY
+        var hit: AXUIElement?
+        XCTAssertEqual(AXUIElementCopyElementAtPosition(AXUIElementCreateApplication(getpid()),
+                                                        Float(frame.midX), Float(primaryHeight - frame.midY), &hit), .success)
+        let element = try XCTUnwrap(hit)
+        XCTAssertEqual(AXUIElementSetAttributeValue(element, kAXSelectedTextAttribute as CFString, "olá" as CFTypeRef), .success)
+        XCTAssertEqual(text, "olá")
+    }
+
+    private static func textView(in view: NSView?) -> NSTextView? {
+        guard let view else { return nil }
+        if let textView = view as? NSTextView { return textView }
+        return view.subviews.lazy.compactMap { textView(in: $0) }.first
     }
 }
