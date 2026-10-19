@@ -10,12 +10,14 @@ struct OnboardingReadinessTests {
         mic: Bool = true,
         ax: Bool = true,
         model: Bool = true,
-        ai: AppleIntelligenceState = .available
+        ai: AppleIntelligenceState = .available,
+        translation: Bool = false
     ) -> [OnboardingBlocker] {
         OnboardingReadiness.blockers(
             for: step, config: config,
             microphoneGranted: mic, accessibilityGranted: ax,
-            localModelReady: model, appleIntelligence: ai
+            localModelReady: model, appleIntelligence: ai,
+            appleTranslationInstalled: translation
         )
     }
 
@@ -72,7 +74,7 @@ struct OnboardingReadinessTests {
     }
 
     // Mirrors `defaultPipelineFactory`: below macOS 26 translation is always Groq;
-    // "groq" needs the key, "local" needs Apple Intelligence, auto needs either.
+    // "groq" needs the key, "local" needs on-device, auto needs either.
     @Test func translatorAvailability() {
         #expect(blockers(.translation, config(translateEnabled: true), ai: .unsupportedOS)
                 == [.translatorUnavailable])
@@ -92,5 +94,17 @@ struct OnboardingReadinessTests {
 
         #expect(blockers(.translation, config(translateEnabled: false), ai: .unsupportedOS)
                 == [.translateDisabled])
+    }
+
+    // Without Apple Intelligence, an installed Translation pair is the on-device
+    // translator (`TranslatePlan`); below macOS 26 it doesn't count.
+    @Test func appleTranslationCountsAsOnDevice() {
+        #expect(blockers(.translation, config(translateEnabled: true), ai: .unavailable, translation: true) == [])
+        #expect(blockers(.translation, config(translateEngine: "local", translateEnabled: true),
+                         ai: .unavailable, translation: true) == [])
+        #expect(blockers(.translation, config(translateEngine: "groq", translateEnabled: true),
+                         ai: .unavailable, translation: true) == [.translatorUnavailable])
+        #expect(blockers(.translation, config(translateEnabled: true), ai: .unsupportedOS, translation: true)
+                == [.translatorUnavailable])
     }
 }

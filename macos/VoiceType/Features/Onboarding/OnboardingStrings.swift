@@ -57,7 +57,7 @@ enum OnboardingStrings {
     static func translationIntro(_ shortcut: String) -> String {
         "Segure \(shortcut), fale em português e solte: o texto é traduzido para o idioma configurado e colado no app em foco."
     }
-    static let translationFellBack = "O texto chegou sem tradução: o tradutor não respondeu (sem rede, sem chave Groq ou sem Apple Intelligence). Fora do tutorial, o VoiceType cola o texto original nesse caso."
+    static let translationFellBack = "O texto chegou sem tradução: nenhum tradutor respondeu (sem Apple Intelligence, sem o idioma baixado para a Tradução da Apple e sem rede ou chave Groq). Fora do tutorial, o VoiceType cola o texto original nesse caso."
 
     static func blocker(_ blocker: OnboardingBlocker) -> String {
         switch blocker {
@@ -72,7 +72,7 @@ enum OnboardingStrings {
         case .translateDisabled:
             return "A tradução está desligada. Ligue em Configurações → \(SettingsStrings.sidebarShortcuts)."
         case .translatorUnavailable:
-            return "A tradução precisa do Apple Intelligence ou de uma chave Groq. Escolha o motor em Configurações → \(SettingsStrings.sidebarLocalRefinement) ou cole a chave em Configurações → \(SettingsStrings.sidebarGeneral)."
+            return "A tradução precisa do Apple Intelligence, dos idiomas baixados para a Tradução da Apple (Ajustes do Sistema → Geral → Idioma e Região → Idiomas de Tradução) ou de uma chave Groq. Escolha o motor em Configurações → \(SettingsStrings.sidebarLocalRefinement) ou cole a chave em Configurações → \(SettingsStrings.sidebarGeneral)."
         case .handsFreeDisabled:
             return "O modo mãos livres está desligado. Ligue em Configurações → \(SettingsStrings.sidebarShortcuts)."
         }

@@ -15,7 +15,8 @@ public enum OnboardingReadiness {
     public static func blockers(for step: OnboardingStep, config: AppConfig,
                                 microphoneGranted: Bool, accessibilityGranted: Bool,
                                 localModelReady: Bool,
-                                appleIntelligence: AppleIntelligenceState) -> [OnboardingBlocker] {
+                                appleIntelligence: AppleIntelligenceState,
+                                appleTranslationInstalled: Bool) -> [OnboardingBlocker] {
         guard step.isPractice else { return [] }
         let hasKey = !config.groq.apiKey.isEmpty
         var blockers: [OnboardingBlocker] = []
@@ -35,7 +36,8 @@ public enum OnboardingReadiness {
         if step == .translation {
             if !config.translate.enabled {
                 blockers.append(.translateDisabled)
-            } else if !translatorAvailable(config.translateEngine, hasKey: hasKey, appleIntelligence: appleIntelligence) {
+            } else if !translatorAvailable(config.translateEngine, hasKey: hasKey, appleIntelligence: appleIntelligence,
+                                           appleTranslationInstalled: appleTranslationInstalled) {
                 blockers.append(.translatorUnavailable)
             }
         }
@@ -44,15 +46,19 @@ public enum OnboardingReadiness {
         return blockers
     }
 
-    // Below macOS 26 translation is always Groq; "groq" needs the key, "local"
-    // needs Apple Intelligence, auto needs either.
+    // Mirrors `TranslatePlan`. Below macOS 26 translation is always Groq. On
+    // device means Apple Intelligence or, without it, the Translation framework
+    // with the dictation→target pair installed. "groq" needs the key, "local"
+    // needs on-device, auto needs either.
     private static func translatorAvailable(_ engine: String, hasKey: Bool,
-                                            appleIntelligence: AppleIntelligenceState) -> Bool {
+                                            appleIntelligence: AppleIntelligenceState,
+                                            appleTranslationInstalled: Bool) -> Bool {
         if appleIntelligence == .unsupportedOS { return hasKey }
+        let onDevice = appleIntelligence == .available || appleTranslationInstalled
         switch engine {
         case "groq":  return hasKey
-        case "local": return appleIntelligence == .available
-        default:      return hasKey || appleIntelligence == .available
+        case "local": return onDevice
+        default:      return hasKey || onDevice
         }
     }
 }

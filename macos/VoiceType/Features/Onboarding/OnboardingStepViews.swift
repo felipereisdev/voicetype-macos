@@ -106,6 +106,8 @@ struct PracticeStepView: View {
     let step: OnboardingStep
     /// Bumped to put the keyboard in the field.
     @State private var focusRequest = 0
+    /// The Translation framework has the dictation→target pair installed.
+    @State private var appleTranslationInstalled = false
 
     var body: some View {
         let config = deps.configSnapshot.config
@@ -154,6 +156,12 @@ struct PracticeStepView: View {
         }
         .task(id: step) {
             await deps.permissionsChecker.refresh()
+            if #available(macOS 26, *), step == .translation {
+                appleTranslationInstalled = await AppleTranslationTranslator.isInstalled(
+                    from: Locale.Language(identifier: config.recording.language),
+                    to: Locale.Language(identifier: config.translate.target)
+                )
+            }
         }
     }
 
@@ -187,7 +195,8 @@ struct PracticeStepView: View {
             microphoneGranted: permissions.microphone == .granted,
             accessibilityGranted: permissions.accessibility == .granted,
             localModelReady: deps.localModels.isReady,
-            appleIntelligence: appleIntelligence
+            appleIntelligence: appleIntelligence,
+            appleTranslationInstalled: appleTranslationInstalled
         )
     }
 
