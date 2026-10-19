@@ -88,7 +88,9 @@ enum OnboardingStrings {
     static let voiceNoteNoPractice = "Testar grava de verdade no vault, por isso este passo não tem prática."
 
     // Histórico
-    static let historyIntro = "Cada ditado fica no Histórico, inclusive os desta prática. Se uma colagem falhar, o texto continua lá."
+    // Only the practice keeps a refused paste in the Histórico (OnboardingPracticeDeliveryAdapter);
+    // elsewhere RunPipelineUseCase records only after a successful paste.
+    static let historyIntro = "Com o Histórico ligado (Configurações → \(SettingsStrings.sidebarHistory)), cada ditado colado fica guardado lá. Se uma colagem falhar, o texto não entra no Histórico: o aviso diz se ele ficou na área de transferência, e aí é colar com Cmd+V antes de copiar outra coisa. Só nesta prática o texto recusado também fica no Histórico."
     static let historyActions = "Em cada entrada: Recolar (cola de novo no app em foco), Copiar e Apagar."
     static let openHistory = "Abrir Histórico"
 
@@ -115,7 +117,7 @@ enum OnboardingStrings {
     static let vocabularyLink = SettingsStrings.sidebarVocabulary
     static let vocabularyHelp = "Nomes e termos que a transcrição deve acertar."
     static let openKnowledgeLink = "Modo OpenKnowledge"
-    static let openKnowledgeHelp = "Reuniões e notas de voz num projeto OpenKnowledge, com aprovação antes de gravar."
+    static let openKnowledgeHelp = "Reuniões e notas de voz num projeto OpenKnowledge. As reuniões só vão para o vault depois da sua aprovação; as notas de voz são salvas direto em _inbox/, sem aprovação."
     static let personalizeReopen = "Reabra este tutorial quando quiser pelo menu: \(menuItem)"
 
     // Botões para Configurações
